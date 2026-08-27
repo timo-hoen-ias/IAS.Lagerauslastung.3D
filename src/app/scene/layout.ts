@@ -9,6 +9,9 @@ export const TOP_H = 0.25;
 export const MAX_ROW_WIDTH = 55;
 export const AISLE_X = 2.5;
 export const AISLE_Z = 6;
+export const POST = 0.08;
+export const FRAME_CLEAR = 0.03;
+export const TOP_OVERHANG = 0.1;
 
 const pitch = (n: number, step: number) => n * step - GAP;
 
@@ -42,6 +45,23 @@ export function rackMetrics(ort: Lagerort) {
   return { cols, levels, depth, size: { w, h, d } as const };
 }
 
+export type RackFrame = {
+  post: { size: [number, number, number]; pos: [number, number, number] };
+  top: { size: [number, number, number]; pos: [number, number, number] };
+};
+
+/** Rahmenbauteile mit klarem Abstand zu den Zellen und zueinander (kein Z-Fighting). */
+export function rackFrame(size: { w: number; h: number; d: number }): RackFrame {
+  const postH = size.h - TOP_H - FRAME_CLEAR;
+  return {
+    post: { size: [POST, postH, POST], pos: [0, FRAME_CLEAR + postH / 2, 0] },
+    top: {
+      size: [size.w + 2 * TOP_OVERHANG, TOP_H, size.d + 2 * TOP_OVERHANG],
+      pos: [0, size.h - TOP_H / 2 + FRAME_CLEAR, 0],
+    },
+  };
+}
+
 export function layoutRacks(orte: Lagerort[]): RackPlacement[] {
   const out: RackPlacement[] = [];
   let x = 0;
@@ -58,7 +78,17 @@ export function layoutRacks(orte: Lagerort[]): RackPlacement[] {
     x += m.size.w + AISLE_X;
     rowMaxD = Math.max(rowMaxD, m.size.d);
   }
-  return out;
+  return centerRacks(out);
+}
+
+/** Verschiebt alle Racks, sodass der Schwerpunkt der Bounding-Box bei (0,0) liegt. */
+export function centerRacks(placements: RackPlacement[]): RackPlacement[] {
+  const b = rackBounds(placements);
+  if (!b) return placements;
+  const cx = (b.minX + b.maxX) / 2;
+  const cz = (b.minZ + b.maxZ) / 2;
+  if (cx === 0 && cz === 0) return placements;
+  return placements.map((p) => ({ ...p, origin: [p.origin[0] - cx, 0, p.origin[2] - cz] }));
 }
 
 export function rackBounds(placements: RackPlacement[]): { minX: number; maxX: number; minZ: number; maxZ: number } | null {

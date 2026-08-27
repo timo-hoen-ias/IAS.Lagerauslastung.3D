@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Lagerort, Lagerplatz } from '../../shared/types';
-import { cellLocalPosition, layoutRacks, rackBounds, rackMetrics } from './layout';
+import { FRAME_CLEAR, TOP_H, TOP_OVERHANG, cellLocalPosition, layoutRacks, rackBounds, rackFrame, rackMetrics } from './layout';
 
 const ort = (dims: { d1: number; d2: number; d3: number }, plaetze: Lagerplatz[] = []): Lagerort => ({
   lagerkennung: 'X',
@@ -42,6 +42,29 @@ describe('rackMetrics', () => {
     expect(rackMetrics(ort({ d1: 100, d2: 0, d3: 0 }))).toMatchObject({ cols: 100, levels: 1, depth: 1 });
     expect(rackMetrics(ort({ d1: 0, d2: 0, d3: 0 }))).toMatchObject({ cols: 1, levels: 1, depth: 1 });
   });
+
+describe('rackFrame', () => {
+  it('Top-Box liegt mit Abstand über den obersten Zellen und den Pfosten (kein Z-Fighting)', () => {
+    for (const dims of [{ d1: 4, d2: 2, d3: 5 }, { d1: 2, d2: 1, d3: 0 }, { d1: 1, d2: 1, d3: 1 }]) {
+      const m = rackMetrics(ort(dims));
+      const f = rackFrame(m.size);
+      const cellTop = m.size.h - TOP_H;
+      const postTop = f.post.pos[1] + f.post.size[1] / 2;
+      const topBottom = f.top.pos[1] - f.top.size[1] / 2;
+      expect(topBottom - cellTop).toBeCloseTo(FRAME_CLEAR, 5);
+      expect(topBottom - postTop).toBeCloseTo(FRAME_CLEAR, 5);
+    }
+  });
+
+  it('Top-Box überragt die Regalaußenkanten, Pfosten enden unter der Top-Box', () => {
+    const m = rackMetrics(ort({ d1: 3, d2: 2, d3: 2 }));
+    const f = rackFrame(m.size);
+    expect(f.top.size[0]).toBe(m.size.w + 2 * TOP_OVERHANG);
+    expect(f.top.size[2]).toBe(m.size.d + 2 * TOP_OVERHANG);
+    expect(f.post.size[1]).toBe(m.size.h - TOP_H - FRAME_CLEAR);
+    expect(f.post.pos[1] - f.post.size[1] / 2).toBeCloseTo(FRAME_CLEAR, 5);
+  });
+});
 });
 
 describe('cellLocalPosition', () => {
@@ -81,8 +104,14 @@ describe('layoutRacks', () => {
     const small = ort({ d1: 2, d2: 2, d3: 2 }, []);
     const placed = layoutRacks([big, small, small, small, small]);
     expect(placed.length).toBe(5);
-    expect(placed[0]!.origin[2]).toBeCloseTo(0.5, 5);
     expect(placed[1]!.origin[2]).toBe(placed[2]!.origin[2]);
     expect(placed[1]!.origin[2]).toBeGreaterThan(placed[0]!.origin[2]);
+  });
+
+  it('zentriert das Layout um den Ursprung', () => {
+    const placed = layoutRacks([ort({ d1: 2, d2: 2, d3: 2 }, []), ort({ d1: 3, d2: 2, d3: 4 }, [])]);
+    const b = rackBounds(placed)!;
+    expect((b.minX + b.maxX) / 2).toBeCloseTo(0, 5);
+    expect((b.minZ + b.maxZ) / 2).toBeCloseTo(0, 5);
   });
 });

@@ -5,16 +5,47 @@ import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { RACK_GREY } from '../colors';
 import { setDragActive, setSelectedRack, setTransform, useDragActive, useSelectedRack, useSelection } from '../store';
-import { TOP_H } from './layout';
-import { snap1, snap45, type PlacedRack, type RackTransform } from './transform';
-import { useGroundPoint } from './ground';
+import { POST, rackFrame } from './layout';
+import {
+  resizeFactor,
+  resizeHeight,
+  resizeRack,
+  snap45,
+  snappedMove,
+  type PlacedRack,
+  type RackTransform,
+} from './transform';
+import { useGroundPoint, useVerticalPlanePoint } from './ground';
 import Cell from './Cell';
 
-const POST = 0.08;
+const HANDLE_OFF = 0.35;
 
 type DragState =
-  | { mode: 'move'; startX: number; startY: number; moved: boolean; last: RackTransform; grab: { dx: number; dz: number } }
-  | { mode: 'rotate'; startX: number; startY: number; moved: boolean; last: RackTransform; cx: number; cz: number };
+  | {
+      mode: 'move';
+      startX: number;
+      startY: number;
+      moved: boolean;
+      last: RackTransform;
+      grab: { dx: number; dz: number };
+      baseX: number;
+      baseZ: number;
+    }
+  | { mode: 'rotate'; startX: number; startY: number; moved: boolean; last: RackTransform; cx: number; cz: number }
+  | {
+      mode: 'resize';
+      axis: 'x' | 'y' | 'z';
+      startX: number;
+      startY: number;
+      moved: boolean;
+      last: RackTransform;
+      baseHalf: number;
+      baseH: number;
+      cx: number;
+      cz: number;
+      cos: number;
+      sin: number;
+    };
 
 export default function Rack({
   placed,
@@ -30,6 +61,7 @@ export default function Rack({
   const { setSelection, selection } = useSelection();
   const selected = useSelectedRack() === placed.key;
   const groundPoint = useGroundPoint();
+  const vertPoint = useVerticalPlanePoint();
   const dragRef = useRef<DragState | null>(null);
   const [hovered, setHovered] = useState(false);
 
@@ -47,21 +79,38 @@ export default function Rack({
     [placed.size.w, placed.size.h, placed.size.d],
   );
 
+  const uW = placed.size.w / transform.scale.x;
+  const uH = placed.size.h / transform.scale.y;
+  const uD = placed.size.d / transform.scale.z;
+
+  const frame = useMemo(() => rackFrame({ w: uW, h: uH, d: uD }), [uW, uH, uD]);
+
   useEffect(() => {
     if (!edit) return;
     const move = (ev: PointerEvent) => {
       const d = dragRef.current;
       if (!d) return;
-      const wp = groundPoint(ev.clientX, ev.clientY);
-      if (!wp) return;
       if (Math.hypot(ev.clientX - d.startX, ev.clientY - d.startY) > 4) d.moved = true;
       if (!d.moved) return;
+      if (d.mode === 'resize') {
+        if (d.axis === 'y') {
+          const vp = vertPoint(ev.clientX, ev.clientY, { x: d.cx, z: d.cz });
+          if (!vp) return;
+          setTransform(placed.key, resizeRack(d.last, 'y', resizeHeight(d.baseH, vp.y, HANDLE_OFF)));
+        } else {
+          const wp = groundPoint(ev.clientX, ev.clientY);
+          if (!wp) return;
+          const dx = wp.x - d.cx;
+          const dz = wp.z - d.cz;
+          const local = d.axis === 'x' ? dx * d.cos + dz * d.sin : -dx * d.sin + dz * d.cos;
+          setTransform(placed.key, resizeRack(d.last, d.axis, resizeFactor(d.baseHalf, local, HANDLE_OFF)));
+        }
+        return;
+      }
+      const wp = groundPoint(ev.clientX, ev.clientY);
+      if (!wp) return;
       if (d.mode === 'move') {
-        const cx = snap1(wp.x - d.grab.dx);
-        const cz = snap1(wp.z - d.grab.dz);
-        const baseX = placed.position[0] - d.last.x;
-        const baseZ = placed.position[2] - d.last.z;
-        setTransform(placed.key, { ...d.last, x: cx - baseX, z: cz - baseZ });
+        setTransform(placed.key, snappedMove(d.last, d.baseX, d.baseZ, wp.x, wp.z, d.grab.dx, d.grab.dz));
       } else {
         const deg = (Math.atan2(wp.z - d.cz, wp.x - d.cx) * 180) / Math.PI;
         setTransform(placed.key, { ...d.last, rotY: (snap45(deg) * Math.PI) / 180 });
@@ -77,7 +126,7 @@ export default function Rack({
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
     };
-  }, [edit, groundPoint, placed.key, placed.position, transform]);
+  }, [edit, groundPoint, vertPoint, placed.key]);
 
   const startMove = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
@@ -91,6 +140,8 @@ export default function Rack({
       startY: e.nativeEvent.clientY,
       moved: false,
       last: transform,
+      baseX: placed.position[0] - transform.x,
+      baseZ: placed.position[2] - transform.z,
       grab: { dx: wp.x - placed.position[0], dz: wp.z - placed.position[2] },
     };
   };
@@ -106,6 +157,27 @@ export default function Rack({
       last: transform,
       cx: placed.position[0],
       cz: placed.position[2],
+    };
+  };
+
+  const startResize = (e: ThreeEvent<PointerEvent>, axis: 'x' | 'y' | 'z') => {
+    e.stopPropagation();
+    setSelectedRack(placed.key);
+    setDragActive(true);
+    const s = transform.scale;
+    dragRef.current = {
+      mode: 'resize',
+      axis,
+      startX: e.nativeEvent.clientX,
+      startY: e.nativeEvent.clientY,
+      moved: false,
+      last: transform,
+      baseHalf: axis === 'x' ? placed.size.w / s.x / 2 : placed.size.d / s.z / 2,
+      baseH: placed.size.h / s.y,
+      cx: placed.position[0],
+      cz: placed.position[2],
+      cos: Math.cos(placed.rotY),
+      sin: Math.sin(placed.rotY),
     };
   };
 
@@ -132,28 +204,24 @@ export default function Rack({
     [1, 1],
   ];
 
-  const uW = placed.size.w / transform.scale;
-  const uH = placed.size.h / transform.scale;
-  const uD = placed.size.d / transform.scale;
-
   return (
     <group position={placed.position} rotation-y={placed.rotY} userData={{ rackKey: placed.key }} {...groupHandlers}>
-      <group scale={transform.scale}>
+      <group scale={[transform.scale.x, transform.scale.y, transform.scale.z]}>
         <mesh position={[0, 0.04, 0]} castShadow receiveShadow>
           <boxGeometry args={[uW + 0.3, 0.08, uD + 0.3]} />
           <meshStandardMaterial color="#262c36" roughness={0.9} />
         </mesh>
 
         {posts.map(([sx, sz], i) => (
-          <mesh key={i} position={[sx * (uW / 2 - POST / 2), uH / 2, sz * (uD / 2 - POST / 2)]} castShadow>
-            <boxGeometry args={[POST, uH, POST]} />
+          <mesh key={i} position={[sx * (uW / 2 - POST / 2), frame.post.pos[1], sz * (uD / 2 - POST / 2)]} castShadow>
+            <boxGeometry args={frame.post.size} />
             <meshStandardMaterial color={color} roughness={0.5} />
           </mesh>
         ))}
 
-        <mesh position={[0, uH - TOP_H / 2, 0]} castShadow>
-          <boxGeometry args={[uW, TOP_H, uD]} />
-          <meshStandardMaterial color={color} roughness={0.5} />
+        <mesh position={[0, frame.top.pos[1], 0]}>
+          <boxGeometry args={frame.top.size} />
+          <meshStandardMaterial color={color} roughness={0.5} transparent opacity={0.45} depthWrite={false} />
         </mesh>
 
         {placed.ort.plaetze.map((platz) => (
@@ -195,11 +263,11 @@ export default function Rack({
         <Billboard position={[0, placed.size.h + 1.6, 0]}>
           <group>
             <mesh>
-              <planeGeometry args={[2.6, 0.7]} />
+              <planeGeometry args={[3.6,0.7]} />
               <meshBasicMaterial color="#11151c" transparent opacity={0.7} />
             </mesh>
-            <Text position={[0, 0.03, 0.01]} fontSize={0.5} color="#7ec8ff" outlineWidth={0.04} outlineColor="#0a0c10" anchorX="center" anchorY="middle">
-              {fmtDim(placed.size.w)} × {fmtDim(placed.size.d)} m
+            <Text position={[0,0.03,0.01]} fontSize={0.5} color="#7ec8ff" outlineWidth={0.04} outlineColor="#0a0c10" anchorX="center" anchorY="middle">
+              {fmtDim(placed.size.w)} × {fmtDim(placed.size.d)} × {fmtDim(placed.size.h)} m
             </Text>
           </group>
         </Billboard>
@@ -216,15 +284,29 @@ export default function Rack({
           anchorX="center"
           anchorY="middle"
         >
-          {fmtDim(placed.size.w)} × {fmtDim(placed.size.d)} m
+          {fmtDim(placed.size.w)} × {fmtDim(placed.size.d)} × {fmtDim(placed.size.h)} m
         </Text>
       </group>
 
       {edit && selected && (
-        <mesh position={[0, placed.size.h + 1.7, 0]} onPointerDown={startRotate} rotation-x={-Math.PI / 2}>
-          <torusGeometry args={[0.45,0.06,8,24]} />
-          <meshStandardMaterial color="#e67e22" emissive="#e67e22" emissiveIntensity={0.5} />
-        </mesh>
+        <>
+          <mesh position={[0, placed.size.h + 1.7, 0]} onPointerDown={startRotate} rotation-x={-Math.PI / 2}>
+            <torusGeometry args={[0.45,0.06,8,24]} />
+            <meshStandardMaterial color="#e67e22" emissive="#e67e22" emissiveIntensity={0.5} />
+          </mesh>
+          <mesh position={[placed.size.w / 2 + HANDLE_OFF, placed.size.h / 2, 0]} onPointerDown={(e) => startResize(e, 'x')}>
+            <boxGeometry args={[0.14, 0.14, 0.14]} />
+            <meshStandardMaterial color="#e67e22" emissive="#e67e22" emissiveIntensity={0.5} />
+          </mesh>
+          <mesh position={[0, placed.size.h / 2, placed.size.d / 2 + HANDLE_OFF]} onPointerDown={(e) => startResize(e, 'z')}>
+            <boxGeometry args={[0.14, 0.14, 0.14]} />
+            <meshStandardMaterial color="#e67e22" emissive="#e67e22" emissiveIntensity={0.5} />
+          </mesh>
+          <mesh position={[0, placed.size.h + HANDLE_OFF, 0]} onPointerDown={(e) => startResize(e, 'y')}>
+            <boxGeometry args={[0.14, 0.14, 0.14]} />
+            <meshStandardMaterial color="#e67e22" emissive="#e67e22" emissiveIntensity={0.5} />
+          </mesh>
+        </>
       )}
     </group>
   );

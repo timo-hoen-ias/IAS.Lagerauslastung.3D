@@ -9,6 +9,7 @@ import HUD from './ui/HUD';
 import Minimap from './ui/Minimap';
 import Crosshair from './ui/Crosshair';
 import Readout from './ui/Readout';
+import Inspector from './ui/Inspector';
 
 export type Mode = 'orbit' | 'walk' | 'topdown';
 
@@ -18,9 +19,10 @@ export default function App() {
   const [data, setData] = useState<LagerDaten | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('orbit');
-  const [speed, setSpeed] = useState(4);
+  const [speed, setSpeed] = useState(10);
   const [edit, setEdit] = useState(false);
   const [measure, setMeasure] = useState(false);
+  const [lighting, setLighting] = useState(false);
 
   const placements = useMemo(() => (data ? layoutRacks(data.lagerorte) : []), [data]);
   const racks = useEffectiveRacks(placements);
@@ -76,10 +78,10 @@ export default function App() {
           setTransform(selectedRack, rotateRack(t, 45));
           break;
         case 'BracketLeft':
-          setTransform(selectedRack, scaleRack(t, t.scale - 0.5));
+          setTransform(selectedRack, scaleRack(t, t.scale.x - 0.5));
           break;
         case 'BracketRight':
-          setTransform(selectedRack, scaleRack(t, t.scale + 0.5));
+          setTransform(selectedRack, scaleRack(t, t.scale.x + 0.5));
           break;
       }
     };
@@ -90,25 +92,28 @@ export default function App() {
   return (
     <div id="wm-root" className="wm-root">
       <SelectionProvider>
-        <Canvas shadows camera={{ position: [0, 16, 34], fov: 60, near: 0.1, far: 400 }}>
-          <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} />
+        <Canvas shadows camera={{ position: [0,16,34], fov: 60, near: 0.1, far: 400 }}>
+          <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} lighting={lighting} />
         </Canvas>
+        <HUD
+          data={data}
+          error={error}
+          mode={mode}
+          setMode={setMode}
+          speed={speed}
+          setSpeed={setSpeed}
+          edit={edit}
+          setEdit={setEdit}
+          measure={measure}
+          setMeasure={setMeasure}
+          lighting={lighting}
+          setLighting={setLighting}
+        />
+        <Minimap racks={racks} visible={mode === 'walk'} />
+        {mode === 'walk' && <Crosshair />}
+        <Readout mode={mode} />
+        <Inspector />
       </SelectionProvider>
-      <HUD
-        data={data}
-        error={error}
-        mode={mode}
-        setMode={setMode}
-        speed={speed}
-        setSpeed={setSpeed}
-        edit={edit}
-        setEdit={setEdit}
-        measure={measure}
-        setMeasure={setMeasure}
-      />
-      <Minimap racks={racks} visible={mode === 'walk'} />
-      {mode === 'walk' && <Crosshair />}
-      <Readout mode={mode} />
     </div>
   );
 }

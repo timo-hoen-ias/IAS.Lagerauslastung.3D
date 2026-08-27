@@ -10,8 +10,10 @@ import {
   useRackTransforms,
   useSelectedRack,
 } from '../store';
-import { dist2d, IDENTITY_TRANSFORM, moveRack, rotateRack } from '../scene/transform';
+import { dist2d, IDENTITY_TRANSFORM, moveRack, resizeRackExact, rotateRack } from '../scene/transform';
+import { rackMetrics } from '../scene/layout';
 import DragPanel from './DragPanel';
+import DecimalInput from './DecimalInput';
 
 const MODES: { id: Mode; label: string }[] = [
   { id: 'orbit', label: 'Orbit' },
@@ -30,6 +32,8 @@ export default function HUD({
   setEdit,
   measure,
   setMeasure,
+  lighting,
+  setLighting,
 }: {
   data: LagerDaten | null;
   error: string | null;
@@ -41,6 +45,8 @@ export default function HUD({
   setEdit: (v: boolean) => void;
   measure: boolean;
   setMeasure: (v: boolean) => void;
+  lighting: boolean;
+  setLighting: (v: boolean) => void;
 }) {
   const measurePoints = useMeasurePoints();
   const selectedRack = useSelectedRack();
@@ -58,39 +64,52 @@ export default function HUD({
   const t = selectedRack ? getTransform(selectedRack) : IDENTITY_TRANSFORM;
   const measDist = measurePoints.length === 2 ? dist2d(measurePoints[0]!, measurePoints[1]!) : null;
 
+  const baseOrt = data?.lagerorte.find((o) => o.lagerkennung === selectedRack);
+  const baseSize = baseOrt ? rackMetrics(baseOrt).size : null;
+  const DIM_AXES: { axis: 'x' | 'y' | 'z'; label: string; dim: 'w' | 'h' | 'd' }[] = [
+    { axis: 'x', label: 'Breite', dim: 'w' },
+    { axis: 'y', label: 'Höhe', dim: 'h' },
+    { axis: 'z', label: 'Tiefe', dim: 'd' },
+  ];
+
   return (
     <>
-      <DragPanel id="topbar" className="hud-top glass" defaultPos={() => ({ x: 12, y: 8 })}>
+      <div className="hud-top glass">
         <span className="hud-title">Lagerbestands-Viewer</span>
-        <div className="hud-modes">
-          {MODES.map((m) => (
-            <button key={m.id} className={`hud-btn${mode === m.id ? ' active' : ''}`} onClick={() => setMode(m.id)}>
-              {m.label}
+        <div className="hud-top-actions">
+          <div className="hud-modes">
+            {MODES.map((m) => (
+              <button key={m.id} className={`hud-btn${mode === m.id ? ' active' : ''}`} onClick={() => setMode(m.id)}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <div className="hud-modes">
+            <button className={`hud-btn${edit ? ' active' : ''}`} onClick={toggleEdit}>
+              Bearbeiten
             </button>
-          ))}
+            <button className={`hud-btn${measure ? ' active' : ''}`} onClick={toggleMeasure}>
+              Messen
+            </button>
+            <button className={`hud-btn${lighting ? ' active' : ''}`} onClick={() => setLighting(!lighting)}>
+              Beleuchtung
+            </button>
+          </div>
+          {data && (
+            <span className="hud-status">
+              {data.lagerorte.length} Lagerorte · {data.lagerorte.reduce((s, o) => s + o.plaetze.length, 0)} Plätze
+            </span>
+          )}
         </div>
-        <div className="hud-modes">
-          <button className={`hud-btn${edit ? ' active' : ''}`} onClick={toggleEdit}>
-            Bearbeiten
-          </button>
-          <button className={`hud-btn${measure ? ' active' : ''}`} onClick={toggleMeasure}>
-            Messen
-          </button>
-        </div>
-        {data && (
-          <span className="hud-status">
-            {data.lagerorte.length} Lagerorte · {data.lagerorte.reduce((s, o) => s + o.plaetze.length, 0)} Plätze
-          </span>
-        )}
-      </DragPanel>
+      </div>
 
       {error && <div className="hud-error">Fehler: {error}</div>}
       {!data && !error && <div className="hud-loading">Lade Bestände…</div>}
 
       <DragPanel id="leftcol" className="hud-left-col glass" defaultPos={() => ({ x: 14, y: Math.max(10, window.innerHeight - 430) })}>
         <div className="hud-speed">
-          <span className="hud-speed-label">Laufgeschwindigkeit</span>
-          <input type="range" min={1} max={12} step={0.5} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
+          <span className="hud-speed-label">Geschwindigkeit</span>
+          <input type="range" min={1} max={30} step={0.5} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
           <span className="hud-speed-value">{speed.toFixed(1)} m/s</span>
         </div>
 
@@ -109,6 +128,9 @@ export default function HUD({
               </div>
             ))}
             <div className="hud-legend-title">Steuerung</div>
+            <div className="hud-legend-item">
+              <span className="legend-label">Orbit: WASD fliegen · Leertaste/Shift hoch/runter</span>
+            </div>
             <div className="hud-legend-item">
               <span className="legend-label">Ego: WASD · Shift Sprint · Leertaste Springen</span>
             </div>
@@ -168,24 +190,25 @@ export default function HUD({
               +45° ⟳
             </button>
           </div>
-          <div className="edit-panel-row">
-            <span className="hud-speed-label">Skala</span>
-            <input
-              type="range"
-              min={0.5}
-              max={2}
-              step={0.5}
-              value={t.scale}
-              onChange={(e) => setTransform(selectedRack, { ...t, scale: Math.min(2, Math.max(0.5, Number(e.target.value))) })}
-            />
-            <span className="hud-speed-value">{t.scale.toFixed(1)}×</span>
-          </div>
-          <div className="edit-panel-row">
-            <button className="hud-btn" onClick={() => resetTransform(selectedRack)}>
-              Reset
-            </button>
-            <span className="edit-panel-hint">Ziehen = Bewegen · Ring = Drehen</span>
-          </div>
+            {DIM_AXES.map(({ axis, label, dim }) => {
+              const base = baseSize?.[dim] ?? 1;
+              return (
+                <div className="edit-panel-row" key={axis}>
+                  <span className="wm-label">{label}</span>
+                  <DecimalInput
+                    value={t.scale[axis] * base}
+                    onCommit={(v) => setTransform(selectedRack, resizeRackExact(t, axis, v / base))}
+                  />
+                  <span className="wm-unit">m</span>
+                </div>
+              );
+            })}
+            <div className="edit-panel-row">
+              <button className="hud-btn" onClick={() => resetTransform(selectedRack)}>
+                Reset
+              </button>
+            </div>
+            <span className="edit-panel-hint">Ziehen = Bewegen · Ring = Drehen · Würfel = Größe</span>
         </DragPanel>
       )}
     </>

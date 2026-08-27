@@ -1,9 +1,10 @@
 import type { Lagerort } from '../../shared/types';
 import type { RackPlacement } from './layout';
 
-export type RackTransform = { x: number; z: number; rotY: number; scale: number };
+export type RackScale = { x: number; y: number; z: number };
+export type RackTransform = { x: number; z: number; rotY: number; scale: RackScale };
 
-export const IDENTITY_TRANSFORM: RackTransform = { x: 0, z: 0, rotY: 0, scale: 1 };
+export const IDENTITY_TRANSFORM: RackTransform = { x: 0, z: 0, rotY: 0, scale: { x: 1, y: 1, z: 1 } };
 export const SCALE_MIN = 0.5;
 export const SCALE_MAX = 2;
 
@@ -43,8 +44,51 @@ export function moveRack(t: RackTransform, dx: number, dz: number): RackTransfor
   return { ...t, x: snap1(t.x + dx), z: snap1(t.z + dz) };
 }
 
+/**
+ * Live-Drag: berechnet den neuen Transform relativ zum KONSTANTEN Basis-Origin
+ * (baseX/baseZ), der beim pointerdown eingefroren wurde. baseX/baseZ dürfen
+ * nicht aus der aktuell zwischengespeicherten Position neu abgeleitet werden,
+ * sonst oszilliert das Regal beim Ziehen.
+ */
+export function snappedMove(
+  last: RackTransform,
+  baseX: number,
+  baseZ: number,
+  wpX: number,
+  wpZ: number,
+  grabDx: number,
+  grabDz: number,
+): RackTransform {
+  return { ...last, x: snap1(wpX - grabDx) - baseX, z: snap1(wpZ - grabDz) - baseZ };
+}
+
 export function scaleRack(t: RackTransform, factor: number): RackTransform {
-  return { ...t, scale: clampScale(round05(factor)) };
+  const s = clampScale(round05(factor));
+  return { ...t, scale: { x: s, y: s, z: s } };
+}
+
+export function resizeRack(t: RackTransform, axis: keyof RackScale, factor: number): RackTransform {
+  return { ...t, scale: { ...t.scale, [axis]: clampScale(round05(factor)) } };
+}
+
+/** Skala setzen ohne 0.5er-Rundung (für Kommazahl-Eingaben in der UI). */
+export function resizeRackExact(t: RackTransform, axis: keyof RackScale, factor: number): RackTransform {
+  return { ...t, scale: { ...t.scale, [axis]: clampScale(factor) } };
+}
+
+/** Faktor aus Zeiger-Position entlang der Achse relativ zur unskalierten Halbkantenlänge. */
+export function resizeFactor(baseHalf: number, pointerCoord: number, handleOffset: number): number {
+  return clampScale(round05((Math.abs(pointerCoord) - handleOffset) / baseHalf));
+}
+
+export function resizeHeightFactor(baseH: number, topY: number, floorY: number): number {
+  return clampScale(round05((topY - floorY) / baseH));
+}
+
+/** Wie resizeHeightFactor, aber rechnet den Griff-Abstand (handleOffset) heraus –
+ *  damit greift der Y-Griff ohne Sprung auf die aktuelle Skala. */
+export function resizeHeight(baseH: number, pointerY: number, handleOffset: number, floorY = 0): number {
+  return resizeHeightFactor(baseH, pointerY - handleOffset, floorY);
 }
 
 export function applyTransform(base: RackPlacement, t: RackTransform): PlacedRack {
@@ -56,7 +100,7 @@ export function applyTransform(base: RackPlacement, t: RackTransform): PlacedRac
     depth: base.depth,
     position: [base.origin[0] + t.x, 0, base.origin[2] + t.z],
     rotY: t.rotY,
-    size: { w: base.size.w * t.scale, h: base.size.h * t.scale, d: base.size.d * t.scale },
+    size: { w: base.size.w * t.scale.x, h: base.size.h * t.scale.y, d: base.size.d * t.scale.z },
   };
 }
 

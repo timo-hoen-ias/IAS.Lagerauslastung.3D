@@ -2,12 +2,11 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 
 export type PanelPos = { x: number; y: number };
 
-const HANDLE_MARGIN = 40;
-
-export function clampPanel(pos: PanelPos, vw: number, vh: number): PanelPos {
+/** Klemmt das Panel komplett ins Viewport (ganze Breite/Höhe berücksichtigt). */
+export function clampPanelTo(pos: PanelPos, vw: number, vh: number, w: number, h: number): PanelPos {
   return {
-    x: Math.min(Math.max(pos.x, 0), Math.max(vw - HANDLE_MARGIN, 0)),
-    y: Math.min(Math.max(pos.y, 0), Math.max(vh - 30, 0)),
+    x: Math.min(Math.max(pos.x, 0), Math.max(vw - w, 0)),
+    y: Math.min(Math.max(pos.y, 0), Math.max(vh - h, 0)),
   };
 }
 
@@ -17,6 +16,7 @@ export function usePanelPos(
   onEnd?: () => void,
 ): {
   pos: PanelPos;
+  panelRef: React.RefObject<HTMLDivElement | null>;
   startDrag: (sx: number, sy: number) => void;
   onHandleDown: (e: ReactPointerEvent<HTMLElement>) => void;
 } {
@@ -32,6 +32,8 @@ export function usePanelPos(
     }
     return defaultPos();
   });
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const sizeRef = useRef({ w: 0, h: 0 });
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   const onEndRef = useRef(onEnd);
   useEffect(() => {
@@ -46,13 +48,39 @@ export function usePanelPos(
     }
   }, [id, pos]);
 
+  const measure = useCallback(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    sizeRef.current = { w: r.width, h: r.height };
+  }, []);
+
+  const clampToViewport = useCallback((p: PanelPos): PanelPos => {
+    const { w, h } = sizeRef.current;
+    return clampPanelTo(p, window.innerWidth, window.innerHeight, w, h);
+  }, []);
+
+  // Beim Start messen und bei Fensteränderungen zurück ins Viewport klemmen.
+  useEffect(() => {
+    measure();
+    const onResize = () => {
+      measure();
+      setPos((p) => {
+        const c = clampToViewport(p);
+        return c.x === p.x && c.y === p.y ? p : c;
+      });
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [measure, clampToViewport]);
+
   const listeners = useRef<{ move: (ev: PointerEvent) => void; up: () => void } | null>(null);
   if (!listeners.current) {
     listeners.current = {
       move: (ev) => {
         const d = dragRef.current;
         if (!d) return;
-        setPos(clampPanel({ x: d.ox + ev.clientX - d.sx, y: d.oy + ev.clientY - d.sy }, window.innerWidth, window.innerHeight));
+        setPos(clampToViewport({ x: d.ox + ev.clientX - d.sx, y: d.oy + ev.clientY - d.sy }));
       },
       up: () => {
         dragRef.current = null;
@@ -85,5 +113,5 @@ export function usePanelPos(
     [startDrag],
   );
 
-  return { pos, startDrag, onHandleDown };
+  return { pos, panelRef, startDrag, onHandleDown };
 }

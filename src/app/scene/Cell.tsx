@@ -48,9 +48,12 @@ export default function Cell({
 
   return (
     <group position={cellLocalPosition(platz, rack)} {...handlers}>
-      <mesh userData={{ rackKey, platzId: platz.platzId }}>
+      <mesh userData={{ rackKey, platzId: platz.platzId }} castShadow>
         <boxGeometry args={[CELL_W, CELL_H, CELL_D]} />
         <meshStandardMaterial
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
           color={hovered ? '#7ec8ff' : color}
           emissive={hovered ? '#1e4d6e' : '#000000'}
           emissiveIntensity={0.4}

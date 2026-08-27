@@ -9,8 +9,10 @@ import {
 import type { Lagerort, Lagerplatz } from '../shared/types';
 import {
   applyTransform,
+  clampScale,
   IDENTITY_TRANSFORM,
   type PlacedRack,
+  type RackScale,
   type RackTransform,
 } from './scene/transform';
 import type { RackPlacement } from './scene/layout';
@@ -81,7 +83,18 @@ export function useCam(): CamState {
 
 // ---- Regal-Transformationen (verschieben/rotieren/skalieren, persistiert) ---
 
-const TRANSFORM_KEY = 'wm-rack-transforms';
+const TRANSFORM_KEY = 'wm-rack-transforms-v2';
+
+function normalizeScale(scale: unknown): RackScale {
+  if (typeof scale === 'number') {
+    return { x: clampScale(scale), y: clampScale(scale), z: clampScale(scale) };
+  }
+  if (scale && typeof scale === 'object') {
+    const s = scale as Partial<RackScale>;
+    return { x: clampScale(s.x ?? 1), y: clampScale(s.y ?? 1), z: clampScale(s.z ?? 1) };
+  }
+  return { x: 1, y: 1, z: 1 };
+}
 
 function loadTransforms(): Record<string, RackTransform> {
   try {
@@ -94,7 +107,7 @@ function loadTransforms(): Record<string, RackTransform> {
         x: Number(v.x) || 0,
         z: Number(v.z) || 0,
         rotY: Number(v.rotY) || 0,
-        scale: typeof v.scale === 'number' && v.scale >= 0.5 && v.scale <= 2 ? v.scale : 1,
+        scale: normalizeScale(v.scale),
       };
     }
     return out;

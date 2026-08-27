@@ -14,7 +14,6 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.1.2",
-    "@react-three/uikit": "^1.0.75",
     "mssql": "^11.0.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
