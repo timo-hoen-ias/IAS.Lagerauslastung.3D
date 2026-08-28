@@ -6,7 +6,7 @@ import type { Lagerplatz } from '../../shared/types';
 import { cellSegments } from './Cell';
 import type { PlacedRack } from './transform';
 
-export const LABEL_HIDE = 28;
+export const LABEL_HIDE = 18;
 
 /** Blendet Kinder per Kamera-Distanz aus (verhindert troika-Text-Draw-Calls in der Ferne). */
 export function LodGroup({

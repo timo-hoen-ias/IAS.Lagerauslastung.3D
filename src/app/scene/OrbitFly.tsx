@@ -31,6 +31,8 @@ export default function OrbitFly({ speed }: { speed: number }) {
   }, []);
 
   useFrame((_, delta) => {
+    const k = keys.current;
+    if (!k['KeyW'] && !k['KeyS'] && !k['KeyA'] && !k['KeyD'] && !k['ArrowUp'] && !k['ArrowDown'] && !k['ArrowLeft'] && !k['ArrowRight']) return;
     const dt = Math.min(delta, 0.05);
     const forward = new THREE.Vector3();
     camera.getWorldDirection(forward);
@@ -38,7 +40,7 @@ export default function OrbitFly({ speed }: { speed: number }) {
     forward.normalize();
     const right = new THREE.Vector3().crossVectors(forward, UP).normalize();
 
-    const d = flyDelta(keys.current, { x: forward.x, z: forward.z }, { x: right.x, z: right.z }, speed, dt);
+    const d = flyDelta(k, { x: forward.x, z: forward.z }, { x: right.x, z: right.z }, speed, dt);
     if (d.x === 0 && d.y === 0 && d.z === 0) return;
 
     camera.position.x += d.x;

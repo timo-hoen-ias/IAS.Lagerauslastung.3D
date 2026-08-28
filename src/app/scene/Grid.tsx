@@ -1,75 +1,44 @@
 import { useMemo } from 'react';
-import { Grid as R3Grid, Text } from '@react-three/drei';
-import { GRID_CELL, GRID_SECTION, LINE_WHITE } from '../colors';
-import type { PlacedRack } from './transform';
+import { Grid as R3Grid } from '@react-three/drei';
+import { GRID_CELL } from '../colors';
+import { rackAabb, type PlacedRack } from './transform';
 
 const STEP = 5;
+const MARGIN = 4;
 
 export default function Grid({ racks }: { racks: PlacedRack[] }) {
-  const labels = useMemo(() => {
+  const bounds = useMemo(() => {
     if (racks.length === 0) return null;
     let minX = Infinity;
     let maxX = -Infinity;
     let minZ = Infinity;
     let maxZ = -Infinity;
     for (const r of racks) {
-      minX = Math.min(minX, r.position[0] - r.size.w / 2);
-      maxX = Math.max(maxX, r.position[0] + r.size.w / 2);
-      minZ = Math.min(minZ, r.position[2] - r.size.d / 2);
-      maxZ = Math.max(maxZ, r.position[2] + r.size.d / 2);
+      const b = rackAabb(r);
+      minX = Math.min(minX, b.minX);
+      maxX = Math.max(maxX, b.maxX);
+      minZ = Math.min(minZ, b.minZ);
+      maxZ = Math.max(maxZ, b.maxZ);
     }
-    const xs: number[] = [];
-    for (let x = Math.ceil(minX / STEP) * STEP; x <= maxX + 1e-6; x += STEP) xs.push(x);
-    const zs: number[] = [];
-    for (let z = Math.ceil(minZ / STEP) * STEP; z <= maxZ + 1e-6; z += STEP) zs.push(z);
-    return { b: { minX, maxX, minZ, maxZ }, xs, zs };
+    return {
+      w: maxX - minX + 2 * MARGIN,
+      d: maxZ - minZ + 2 * MARGIN,
+      cx: (minX + maxX) / 2,
+      cz: (minZ + maxZ) / 2,
+    };
   }, [racks]);
 
+  if (!bounds) return null;
+
   return (
-    <>
-      <R3Grid
-        cellSize={1}
-        sectionSize={STEP}
-        cellColor={GRID_CELL}
-        sectionColor={GRID_SECTION}
-        fadeDistance={220}
-        infiniteGrid
-        position={[0, 0.01, 0]}
-      />
-      {labels && (
-        <>
-          {labels.xs.map((x) => (
-            <Text
-              key={`x${x}`}
-              position={[x, 0.06, labels.b.maxZ + 1.5]}
-              rotation-x={-Math.PI / 2}
-              fontSize={0.6}
-              color={LINE_WHITE}
-              outlineWidth={0.04}
-              outlineColor="#0a0c10"
-              anchorX="center"
-              anchorY="middle"
-            >
-              {Math.round(x)}
-            </Text>
-          ))}
-          {labels.zs.map((z) => (
-            <Text
-              key={`z${z}`}
-              position={[labels.b.minX - 1.5, 0.06, z]}
-              rotation-x={-Math.PI / 2}
-              fontSize={0.6}
-              color={LINE_WHITE}
-              outlineWidth={0.04}
-              outlineColor="#0a0c10"
-              anchorX="center"
-              anchorY="middle"
-            >
-              {Math.round(z)}
-            </Text>
-          ))}
-        </>
-      )}
-    </>
+    <R3Grid
+      args={[bounds.w, bounds.d]}
+      cellSize={1}
+      sectionSize={STEP}
+      cellColor={GRID_CELL}
+      sectionColor={GRID_CELL}
+      fadeDistance={120}
+      position={[bounds.cx, 0.01, bounds.cz]}
+    />
   );
 }

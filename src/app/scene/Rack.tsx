@@ -196,6 +196,7 @@ function FloorFrame({ w, d, boost = false, warn = false }: { w: number; d: numbe
     [coreGeo, haloGeo],
   );
   useFrame(({ clock }) => {
+    if (!boost && !warn) return;
     const p = 0.5 + 0.5 * Math.sin(clock.elapsedTime * Math.PI);
     if (boost) {
       core.opacity = 0.9 + 0.1 * p;
@@ -203,9 +204,6 @@ function FloorFrame({ w, d, boost = false, warn = false }: { w: number; d: numbe
     } else if (warn) {
       core.opacity = 0.9 + 0.1 * p;
       halo.opacity = 0.3 + 0.15 * p;
-    } else {
-      core.opacity = 0.75 + 0.2 * p;
-      halo.opacity = 0.14 + 0.16 * p;
     }
   });
 

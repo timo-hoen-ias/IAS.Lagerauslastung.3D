@@ -3,11 +3,26 @@ import { usePlayer } from '../store';
 import type { PlacedRack } from '../scene/transform';
 import DragPanel from './DragPanel';
 
+const MIN_REDRAW_MS = 100;
+const MOVE_EPS = 0.05;
+
+/** Throttle: nur neu zeichnen, wenn sich Spieler/Regal genug bewegt haben ODER das Intervall abgelaufen ist. */
+export function minimapRedrawDue(last: { x: number; z: number; yaw: number; t: number } | null, x: number, z: number, yaw: number, now: number): boolean {
+  if (!last) return true;
+  const moved = Math.hypot(x - last.x, z - last.z) + Math.abs(yaw - last.yaw);
+  return moved > MOVE_EPS || now - last.t >= MIN_REDRAW_MS;
+}
+
 export default function Minimap({ racks, visible }: { racks: PlacedRack[]; visible: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const player = usePlayer();
+  const last = useRef<{ x: number; z: number; yaw: number; t: number } | null>(null);
 
   useEffect(() => {
+    const now = performance.now();
+    if (!minimapRedrawDue(last.current, player.x, player.z, player.yaw, now)) return;
+    last.current = { x: player.x, z: player.z, yaw: player.yaw, t: now };
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

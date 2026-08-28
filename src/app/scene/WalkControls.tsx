@@ -18,6 +18,7 @@ export default function WalkControls({ racks, speed }: { racks: PlacedRack[]; sp
   const camera = useThree((s) => s.camera);
   const keys = useRef<Record<string, boolean>>({});
   const motion = useRef({ vy: 0, grounded: true });
+  const lastPos = useRef({ x: 0, z: 0, yaw: 0 });
 
   useEffect(() => {
     camera.position.y = EYE_HEIGHT;
@@ -76,7 +77,11 @@ export default function WalkControls({ racks, speed }: { racks: PlacedRack[]; sp
 
     const forward = new THREE.Vector3();
     camera.getWorldDirection(forward);
-    updatePlayer({ x: pos.x, z: pos.z, yaw: Math.atan2(forward.x, forward.z) });
+    const yaw = Math.atan2(forward.x, forward.z);
+    if (Math.abs(pos.x - lastPos.current.x) + Math.abs(pos.z - lastPos.current.z) + Math.abs(yaw - lastPos.current.yaw) > 0.001) {
+      lastPos.current = { x: pos.x, z: pos.z, yaw };
+      updatePlayer({ x: pos.x, z: pos.z, yaw });
+    }
   });
 
   return <PointerLockControls ref={controls} makeDefault selector="#wm-root" />;
