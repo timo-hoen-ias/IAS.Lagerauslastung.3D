@@ -1,0 +1,94 @@
+import type { LagerDaten, Lagerplatz, Lagerort } from '../shared/types';
+import { cellLocalPosition, cellSize, gangPlätze } from './scene/layout';
+import type { PlacedRack, RackTransform } from './scene/transform';
+
+export type ArtikelRef = { artikelnummer: string; bezeichnung1: string; gesamt: number };
+
+/** Alle im geladenen Bestand vorkommenden Artikel, dedupliziert und sortiert. */
+export function alleArtikel(data: LagerDaten): ArtikelRef[] {
+  const map = new Map<string, { bezeichnung1: string; gesamt: number }>();
+  for (const ort of data.lagerorte) {
+    for (const p of ort.plaetze) {
+      for (const b of p.bestaende) {
+        const e = map.get(b.artikelnummer);
+        if (e) {
+          e.gesamt += b.bestand;
+          if (!e.bezeichnung1) e.bezeichnung1 = b.bezeichnung1;
+        } else {
+          map.set(b.artikelnummer, { bezeichnung1: b.bezeichnung1, gesamt: b.bestand });
+        }
+      }
+    }
+  }
+  return [...map.entries()]
+    .map(([artikelnummer, v]) => ({ artikelnummer, ...v }))
+    .sort((a, b) => a.artikelnummer.localeCompare(b.artikelnummer, 'de'));
+}
+
+/**
+ * Autocomplete-Filter: Präfix-Treffer der Artikelnummer zuerst, dann
+ * enthaltende Treffer (Nummer oder Bezeichnung). Case-insensitive.
+ */
+export function filterArtikel(liste: ArtikelRef[], query: string, limit = 20): ArtikelRef[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const treffer: { r: ArtikelRef; prefix: boolean }[] = [];
+  for (const r of liste) {
+    const art = r.artikelnummer.toLowerCase();
+    if (art.includes(q) || r.bezeichnung1.toLowerCase().includes(q)) {
+      treffer.push({ r, prefix: art.startsWith(q) });
+    }
+  }
+  treffer.sort(
+    (a, b) =>
+      Number(b.prefix) - Number(a.prefix) ||
+      a.r.artikelnummer.localeCompare(b.r.artikelnummer, 'de') ||
+      a.r.bezeichnung1.localeCompare(b.r.bezeichnung1, 'de'),
+  );
+  return treffer.slice(0, limit).map((t) => t.r);
+}
+
+export type ArtikelPlatz = { ort: Lagerort; platz: Lagerplatz; bestand: number };
+
+/** Alle Lagerplätze, auf denen ein Artikel liegt, sortiert nach Lagerort und Platz. */
+export function artikelLagerplätze(data: LagerDaten, artikelnummer: string): ArtikelPlatz[] {
+  const out: ArtikelPlatz[] = [];
+  for (const ort of data.lagerorte) {
+    for (const p of ort.plaetze) {
+      const b = p.bestaende.find((b) => b.artikelnummer === artikelnummer);
+      if (b) out.push({ ort, platz: p, bestand: b.bestand });
+    }
+  }
+  out.sort((a, b) => a.ort.lagerkennung.localeCompare(b.ort.lagerkennung, 'de') || a.platz.platzId - b.platz.platzId);
+  return out;
+}
+
+export type PlatzRef = { platz: Lagerplatz; bestand: number };
+
+/** Plätze einer Regal-Instanz, die den Artikel enthalten. */
+export function plätzeMitArtikel(rack: PlacedRack, artikelnummer: string): PlatzRef[] {
+  const out: PlatzRef[] = [];
+  for (const p of gangPlätze(rack.ort, rack.kind, rack.gang)) {
+    const b = p.bestaende.find((b) => b.artikelnummer === artikelnummer);
+    if (b) out.push({ platz: p, bestand: b.bestand });
+  }
+  return out;
+}
+
+export type CellWorld = { x: number; y: number; z: number; w: number; d: number; h: number };
+
+/** Weltposition einer Zelle inkl. Rotation (rotY) und Skalierung des Regals. */
+export function platzWorld(placed: PlacedRack, t: RackTransform, platz: Lagerplatz): CellWorld {
+  const box = cellSize(platz);
+  const [lx, ly, lz] = cellLocalPosition(platz, placed);
+  const c = Math.cos(placed.rotY);
+  const s = Math.sin(placed.rotY);
+  return {
+    x: placed.position[0] + c * lx * t.scale.x - s * lz * t.scale.z,
+    y: ly * t.scale.y,
+    z: placed.position[2] + s * lx * t.scale.x + c * lz * t.scale.z,
+    w: box.w * t.scale.x,
+    d: box.d * t.scale.z,
+    h: box.h * t.scale.y,
+  };
+}

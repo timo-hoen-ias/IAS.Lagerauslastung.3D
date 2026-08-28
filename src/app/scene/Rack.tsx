@@ -1,11 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
+import { Billboard, Text, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { RACK_GREY } from '../colors';
-import { setDragActive, setSelectedRack, setTransform, useDragActive, useSelectedRack, useSelection } from '../store';
-import { POST, rackFrame } from './layout';
+import {
+  getTransform,
+  setDragActive,
+  setSelectedRack,
+  setTransform,
+  useDragActive,
+  useSelectedRack,
+  useSelection,
+  useTransformMode,
+} from '../store';
+import { BASE_H, LEVEL_GAP, POST, gangPlätze, rackFrame } from './layout';
+import { platzÜberlastet } from '../gew';
 import {
   resizeFactor,
   resizeHeight,
@@ -17,35 +27,6 @@ import {
 } from './transform';
 import { useGroundPoint, useVerticalPlanePoint } from './ground';
 import Cell from './Cell';
-
-const HANDLE_OFF = 0.35;
-
-type DragState =
-  | {
-      mode: 'move';
-      startX: number;
-      startY: number;
-      moved: boolean;
-      last: RackTransform;
-      grab: { dx: number; dz: number };
-      baseX: number;
-      baseZ: number;
-    }
-  | { mode: 'rotate'; startX: number; startY: number; moved: boolean; last: RackTransform; cx: number; cz: number }
-  | {
-      mode: 'resize';
-      axis: 'x' | 'y' | 'z';
-      startX: number;
-      startY: number;
-      moved: boolean;
-      last: RackTransform;
-      baseHalf: number;
-      baseH: number;
-      cx: number;
-      cz: number;
-      cos: number;
-      sin: number;
-    };
 
 export default function Rack({
   placed,
@@ -60,17 +41,13 @@ export default function Rack({
 }) {
   const { setSelection, selection } = useSelection();
   const selected = useSelectedRack() === placed.key;
-  const groundPoint = useGroundPoint();
-  const vertPoint = useVerticalPlanePoint();
-  const dragRef = useRef<DragState | null>(null);
   const [hovered, setHovered] = useState(false);
 
   const color = RACK_GREY;
   const dragActive = useDragActive();
-  const selectedOrt = selection?.ort.lagerkennung === placed.key && !selection?.platz;
+  const selectedOrt = selection?.ort.lagerkennung === placed.ort.lagerkennung && !selection?.platz;
   const rackActive = hovered || selectedOrt;
   const dragging = edit && dragActive && selected;
-
   const rackEdgeGeo = useMemo(
     () =>
       new THREE.EdgesGeometry(
@@ -85,104 +62,18 @@ export default function Rack({
 
   const frame = useMemo(() => rackFrame({ w: uW, h: uH, d: uD }), [uW, uH, uD]);
 
-  useEffect(() => {
-    if (!edit) return;
-    const move = (ev: PointerEvent) => {
-      const d = dragRef.current;
-      if (!d) return;
-      if (Math.hypot(ev.clientX - d.startX, ev.clientY - d.startY) > 4) d.moved = true;
-      if (!d.moved) return;
-      if (d.mode === 'resize') {
-        if (d.axis === 'y') {
-          const vp = vertPoint(ev.clientX, ev.clientY, { x: d.cx, z: d.cz });
-          if (!vp) return;
-          setTransform(placed.key, resizeRack(d.last, 'y', resizeHeight(d.baseH, vp.y, HANDLE_OFF)));
-        } else {
-          const wp = groundPoint(ev.clientX, ev.clientY);
-          if (!wp) return;
-          const dx = wp.x - d.cx;
-          const dz = wp.z - d.cz;
-          const local = d.axis === 'x' ? dx * d.cos + dz * d.sin : -dx * d.sin + dz * d.cos;
-          setTransform(placed.key, resizeRack(d.last, d.axis, resizeFactor(d.baseHalf, local, HANDLE_OFF)));
-        }
-        return;
-      }
-      const wp = groundPoint(ev.clientX, ev.clientY);
-      if (!wp) return;
-      if (d.mode === 'move') {
-        setTransform(placed.key, snappedMove(d.last, d.baseX, d.baseZ, wp.x, wp.z, d.grab.dx, d.grab.dz));
-      } else {
-        const deg = (Math.atan2(wp.z - d.cz, wp.x - d.cx) * 180) / Math.PI;
-        setTransform(placed.key, { ...d.last, rotY: (snap45(deg) * Math.PI) / 180 });
-      }
-    };
-    const up = () => {
-      dragRef.current = null;
-      setDragActive(false);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    return () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-    };
-  }, [edit, groundPoint, vertPoint, placed.key]);
-
-  const startMove = (e: ThreeEvent<PointerEvent>) => {
-    e.stopPropagation();
-    setSelectedRack(placed.key);
-    const wp = groundPoint(e.nativeEvent.clientX, e.nativeEvent.clientY);
-    if (!wp) return;
-    setDragActive(true);
-    dragRef.current = {
-      mode: 'move',
-      startX: e.nativeEvent.clientX,
-      startY: e.nativeEvent.clientY,
-      moved: false,
-      last: transform,
-      baseX: placed.position[0] - transform.x,
-      baseZ: placed.position[2] - transform.z,
-      grab: { dx: wp.x - placed.position[0], dz: wp.z - placed.position[2] },
-    };
-  };
-
-  const startRotate = (e: ThreeEvent<PointerEvent>) => {
-    e.stopPropagation();
-    setDragActive(true);
-    dragRef.current = {
-      mode: 'rotate',
-      startX: e.nativeEvent.clientX,
-      startY: e.nativeEvent.clientY,
-      moved: false,
-      last: transform,
-      cx: placed.position[0],
-      cz: placed.position[2],
-    };
-  };
-
-  const startResize = (e: ThreeEvent<PointerEvent>, axis: 'x' | 'y' | 'z') => {
-    e.stopPropagation();
-    setSelectedRack(placed.key);
-    setDragActive(true);
-    const s = transform.scale;
-    dragRef.current = {
-      mode: 'resize',
-      axis,
-      startX: e.nativeEvent.clientX,
-      startY: e.nativeEvent.clientY,
-      moved: false,
-      last: transform,
-      baseHalf: axis === 'x' ? placed.size.w / s.x / 2 : placed.size.d / s.z / 2,
-      baseH: placed.size.h / s.y,
-      cx: placed.position[0],
-      cz: placed.position[2],
-      cos: Math.cos(placed.rotY),
-      sin: Math.sin(placed.rotY),
-    };
-  };
+  const überlastet = useMemo(
+    () => gangPlätze(placed.ort, placed.kind, placed.gang).some((p) => platzÜberlastet(p)),
+    [placed.ort, placed.kind, placed.gang],
+  );
 
   const groupHandlers = edit
-    ? { onPointerDown: startMove }
+    ? {
+        onPointerDown: (e: ThreeEvent<PointerEvent>) => {
+          e.stopPropagation();
+          setSelectedRack(placed.key);
+        },
+      }
     : interactive
       ? {
           onClick: (e: ThreeEvent<MouseEvent>) => {
@@ -207,24 +98,35 @@ export default function Rack({
   return (
     <group position={placed.position} rotation-y={placed.rotY} userData={{ rackKey: placed.key }} {...groupHandlers}>
       <group scale={[transform.scale.x, transform.scale.y, transform.scale.z]}>
-        <mesh position={[0, 0.04, 0]} castShadow receiveShadow>
-          <boxGeometry args={[uW + 0.3, 0.08, uD + 0.3]} />
-          <meshStandardMaterial color="#262c36" roughness={0.9} />
-        </mesh>
+        {!placed.flat && (
+          <>
+            <mesh position={[0,0.04,0]} castShadow receiveShadow>
+              <boxGeometry args={[uW + 0.3, 0.08, uD + 0.3]} />
+              <meshStandardMaterial color="#262c36" roughness={0.9} />
+            </mesh>
 
-        {posts.map(([sx, sz], i) => (
-          <mesh key={i} position={[sx * (uW / 2 - POST / 2), frame.post.pos[1], sz * (uD / 2 - POST / 2)]} castShadow>
-            <boxGeometry args={frame.post.size} />
-            <meshStandardMaterial color={color} roughness={0.5} />
-          </mesh>
-        ))}
+            {Array.from({ length: placed.levels }).map((_, iy) => (
+              <mesh key={iy} position={[0, BASE_H + iy * (placed.cellH + LEVEL_GAP) - 0.02, 0]} castShadow receiveShadow>
+                <boxGeometry args={[uW + 0.1, 0.04, uD + 0.1]} />
+                <meshStandardMaterial color="#262c36" roughness={0.9} />
+              </mesh>
+            ))}
 
-        <mesh position={[0, frame.top.pos[1], 0]}>
-          <boxGeometry args={frame.top.size} />
-          <meshStandardMaterial color={color} roughness={0.5} transparent opacity={0.45} depthWrite={false} />
-        </mesh>
+            {posts.map(([sx, sz], i) => (
+              <mesh key={i} position={[sx * (uW / 2 - POST / 2), frame.post.pos[1], sz * (uD / 2 - POST / 2)]} castShadow>
+                <boxGeometry args={frame.post.size} />
+                <meshStandardMaterial color={color} roughness={0.5} />
+              </mesh>
+            ))}
 
-        {placed.ort.plaetze.map((platz) => (
+            <mesh position={[0, frame.top.pos[1], 0]}>
+              <boxGeometry args={frame.top.size} />
+              <meshStandardMaterial color={color} roughness={0.5} transparent opacity={0.45} depthWrite={false} />
+            </mesh>
+          </>
+        )}
+
+        {gangPlätze(placed.ort, placed.kind, placed.gang).map((platz) => (
           <Cell key={platz.platzId} platz={platz} rack={placed} interactive={interactive} rackKey={placed.key} ort={placed.ort} />
         ))}
       </group>
@@ -250,7 +152,21 @@ export default function Rack({
         </Text>
       </Billboard>
 
-      <FloorFrame w={placed.size.w} d={placed.size.d} boost={dragging} />
+      <FloorFrame w={placed.size.w} d={placed.size.d} boost={dragging} warn={überlastet} />
+
+      {überlastet && (
+        <group position={[0, placed.size.h + 2.2, 0]}>
+          <Billboard>
+            <mesh>
+              <cylinderGeometry args={[0.28, 0.28, 0.24, 3]} />
+              <meshBasicMaterial color="#e74c3c" />
+            </mesh>
+            <Text position={[0, 0.01, 0.01]} fontSize={0.22} color="#ffffff" anchorX="center" anchorY="middle" fontWeight="bold">
+              !
+            </Text>
+          </Billboard>
+        </group>
+      )}
 
       {dragging && (
         <mesh position={[0,0.035,0]} rotation-x={-Math.PI / 2}>
@@ -261,11 +177,11 @@ export default function Rack({
 
       <group position={[0, 0, placed.size.d / 2 + 1.2]}>
         <Text
-          position={[0, 0.08, 0]}
+          position={[0,0.08,0]}
           rotation-x={-Math.PI / 2}
-          fontSize={0.5}
+          fontSize={0.35}
           color="#ffffff"
-          outlineWidth={0.04}
+          outlineWidth={0.03}
           outlineColor="#0a0c10"
           anchorX="center"
           anchorY="middle"
@@ -274,26 +190,6 @@ export default function Rack({
         </Text>
       </group>
 
-      {edit && selected && (
-        <>
-          <mesh position={[0, placed.size.h + 1.7, 0]} onPointerDown={startRotate} rotation-x={-Math.PI / 2}>
-            <torusGeometry args={[0.45,0.06,8,24]} />
-            <meshStandardMaterial color="#e67e22" emissive="#e67e22" emissiveIntensity={0.5} />
-          </mesh>
-          <mesh position={[placed.size.w / 2 + HANDLE_OFF, placed.size.h / 2, 0]} onPointerDown={(e) => startResize(e, 'x')}>
-            <boxGeometry args={[0.14, 0.14, 0.14]} />
-            <meshStandardMaterial color="#e67e22" emissive="#e67e22" emissiveIntensity={0.5} />
-          </mesh>
-          <mesh position={[0, placed.size.h / 2, placed.size.d / 2 + HANDLE_OFF]} onPointerDown={(e) => startResize(e, 'z')}>
-            <boxGeometry args={[0.14, 0.14, 0.14]} />
-            <meshStandardMaterial color="#e67e22" emissive="#e67e22" emissiveIntensity={0.5} />
-          </mesh>
-          <mesh position={[0, placed.size.h + HANDLE_OFF, 0]} onPointerDown={(e) => startResize(e, 'y')}>
-            <boxGeometry args={[0.14, 0.14, 0.14]} />
-            <meshStandardMaterial color="#e67e22" emissive="#e67e22" emissiveIntensity={0.5} />
-          </mesh>
-        </>
-      )}
     </group>
   );
 }
@@ -339,24 +235,30 @@ function LineGlow({
   );
 }
 
-function FloorFrame({ w, d, boost = false }: { w: number; d: number; boost?: boolean }) {
-  const core = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.9 }), []);
+function FloorFrame({ w, d, boost = false, warn = false }: { w: number; d: number; boost?: boolean; warn?: boolean }) {
+  const core = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: warn ? '#e74c3c' : '#ffffff', transparent: true, opacity: 0.9 }),
+    [warn],
+  );
   const halo = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        color: '#ffffff',
+        color: warn ? '#e74c3c' : '#ffffff',
         transparent: true,
         opacity: 0.22,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
-    [],
+    [warn],
   );
   useFrame(({ clock }) => {
     const p = 0.5 + 0.5 * Math.sin(clock.elapsedTime * Math.PI);
     if (boost) {
       core.opacity = 0.9 + 0.1 * p;
       halo.opacity = 0.26 + 0.12 * p;
+    } else if (warn) {
+      core.opacity = 0.9 + 0.1 * p;
+      halo.opacity = 0.3 + 0.15 * p;
     } else {
       core.opacity = 0.75 + 0.2 * p;
       halo.opacity = 0.14 + 0.16 * p;

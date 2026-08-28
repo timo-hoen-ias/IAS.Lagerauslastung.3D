@@ -10,7 +10,7 @@ export default function Readout({ mode }: { mode: Mode }) {
     <DragPanel
       id="readout"
       className="readout glass"
-      defaultPos={() => ({ x: Math.max(10, window.innerWidth - 250), y: Math.max(10, window.innerHeight - 190) })}
+      defaultPos={() => ({ x: Math.max(10, window.innerWidth - 250), y: Math.max(10, window.innerHeight - 250) })}
     >
       <div className="readout-line">
         POS-X <span>{cam.x.toFixed(1)}</span>

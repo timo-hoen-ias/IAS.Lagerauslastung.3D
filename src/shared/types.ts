@@ -1,8 +1,10 @@
 export type Lagerbestand = {
   artikelnummer: string;
   bezeichnung1: string;
+  matchcode: string;
   bestand: number;
   verfuegbarkeit: number;
+  gewicht: number;
 };
 
 export type Lagerplatz = {
@@ -12,6 +14,7 @@ export type Lagerplatz = {
   kurz: string;
   platzbezeichnung: string;
   masse: { hoehe: number; breite: number; laenge: number };
+  maxGewicht: number;
   bestaende: Lagerbestand[];
 };
 

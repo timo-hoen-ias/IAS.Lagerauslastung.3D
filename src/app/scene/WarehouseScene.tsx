@@ -1,9 +1,10 @@
-import { OrbitControls } from '@react-three/drei';
+import { OrbitControls, GizmoHelper, GizmoViewcube } from '@react-three/drei';
 import * as THREE from 'three';
 import { getTransform, useDragActive } from '../store';
 import { FLOOR } from '../colors';
 import type { PlacedRack } from './transform';
 import Rack from './Rack';
+import RackControls from './RackControls';
 import WalkControls from './WalkControls';
 import TopDownControls from './TopDownControls';
 import OrbitFly from './OrbitFly';
@@ -11,6 +12,7 @@ import Grid from './Grid';
 import MeasureTool from './MeasureTool';
 import LookTarget from './LookTarget';
 import TargetMarker from './TargetMarker';
+import ArticleMarkers from './ArticleMarkers';
 import CameraReporter from './CameraReporter';
 import Perimeter from './Perimeter';
 import FloorMask from './FloorMask';
@@ -69,6 +71,8 @@ export default function WarehouseScene({
         <Rack key={r.key} placed={r} transform={getTransform(r.key)} edit={edit} interactive={interactive} />
       ))}
 
+      {edit && <RackControls racks={racks} />}
+
       {mode === 'orbit' && (
         <OrbitControls
           makeDefault
@@ -78,11 +82,17 @@ export default function WarehouseScene({
         />
       )}
       {mode === 'orbit' && <OrbitFly speed={speed} />}
+      {mode === 'orbit' && (
+        <GizmoHelper alignment="bottom-left" margin={[80, 90]}>
+          <GizmoViewcube />
+        </GizmoHelper>
+      )}
       {mode === 'walk' && <WalkControls racks={racks} speed={speed} />}
       {mode === 'topdown' && <TopDownControls racks={racks} />}
 
       {mode === 'walk' && <LookTarget racks={racks} />}
       {mode !== 'walk' && <TargetMarker racks={racks} />}
+      <ArticleMarkers racks={racks} />
       {measure && <MeasureTool />}
       <CameraReporter />
     </>

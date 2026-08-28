@@ -1,6 +1,9 @@
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import type { Lagerort, Lagerplatz } from '../../shared/types';
-import { useSelection } from '../store';
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Search } from 'lucide-react';
+import type { LagerDaten, Lagerort, Lagerplatz } from '../../shared/types';
+import { alleArtikel, artikelLagerplätze, filterArtikel, type ArtikelPlatz } from '../article';
+import { setSelectedArticle, useSelectedArticle, useSelection } from '../store';
+import { fmtKg, ortGewicht, ortMaxGewicht, platzGewicht, platzMaxGewicht } from '../gew';
 
 const WIDTH_KEY = 'wm-inspector-width';
 const WIDTH_MIN = 240;
@@ -9,8 +12,12 @@ function clampWidth(w: number): number {
   return Math.min(Math.max(w, WIDTH_MIN), Math.max(window.innerWidth - 80, WIDTH_MIN));
 }
 
-export default function Inspector() {
+export default function Inspector({ data }: { data: LagerDaten | null }) {
   const { selection, setSelection } = useSelection();
+  const artikel = useSelectedArticle();
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [hl, setHl] = useState(0);
   const [width, setWidth] = useState<number>(() => {
     try {
       const raw = localStorage.getItem(WIDTH_KEY);
@@ -49,32 +56,159 @@ export default function Inspector() {
     window.addEventListener('pointerup', up);
   }, []);
 
-  if (!selection) return null;
+  const artikelListe = useMemo(() => (data ? alleArtikel(data) : []), [data]);
+  const vorschlaege = useMemo(() => filterArtikel(artikelListe, query), [artikelListe, query]);
+  const plätze = useMemo(() => (data && artikel ? artikelLagerplätze(data, artikel) : []), [data, artikel]);
+  const artikelRef = useMemo(() => artikelListe.find((a) => a.artikelnummer === artikel) ?? null, [artikelListe, artikel]);
+
+  const waehlen = useCallback((nr: string) => {
+    setSelectedArticle(nr);
+    setQuery(nr);
+    setOpen(false);
+  }, []);
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHl((h) => Math.min(h + 1, Math.max(0, vorschlaege.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHl((h) => Math.max(h - 1, 0));
+    } else if (e.key === 'Enter') {
+      const v = vorschlaege[hl];
+      if (v) waehlen(v.artikelnummer);
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
 
   return (
     <div className="inspector glass" style={{ width }}>
       <div className="inspector-resize" onPointerDown={onResizeDown} title="Breite ändern" />
-      <div className="inspector-title-row">
-        <span className="inspector-title">{selection.ort.lagerkennung}</span>
-        <button className="hud-btn inspector-close" onClick={() => setSelection(null)} title="Schließen">
-          ✕
-        </button>
+      <div className="inspector-search">
+        <Search size={14} className="inspector-search-icon" />
+        <input
+          className="inspector-search-input"
+          value={query}
+          placeholder="Artikelnummer suchen…"
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+            setHl(0);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onKeyDown={onKeyDown}
+          spellCheck={false}
+        />
+        {open && vorschlaege.length > 0 && (
+          <ul className="article-suggestions" onMouseDown={(e) => e.preventDefault()}>
+            {vorschlaege.map((v, i) => (
+              <li
+                key={v.artikelnummer}
+                className={i === hl ? 'sel' : ''}
+                onMouseEnter={() => setHl(i)}
+                onClick={() => waehlen(v.artikelnummer)}
+              >
+                <span className="as-nr">{v.artikelnummer}</span>
+                <span className="as-bez">{v.bezeichnung1}</span>
+                <span className="as-men">{fmt(v.gesamt)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-      <div className="inspector-subtitle">
-        {selection.ort.bezeichnung} · Lagertechnik {selection.ort.lagertechnik}
+
+      {artikel ? (
+        <>
+          <div className="inspector-title-row">
+            <span className="inspector-title">Artikel {artikel}</span>
+            <button
+              className="hud-btn inspector-close"
+              onClick={() => {
+                setSelectedArticle(null);
+                setQuery('');
+              }}
+              title="Suche zurücksetzen"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="inspector-subtitle">
+            {artikelRef?.bezeichnung1 || 'Unbekannter Artikel'} · {plätze.length} Lagerplätze
+          </div>
+          <ArticlePanel plätze={plätze} />
+        </>
+      ) : selection ? (
+        <>
+          <div className="inspector-title-row">
+            <span className="inspector-title">{selection.ort.lagerkennung}</span>
+            <button className="hud-btn inspector-close" onClick={() => setSelection(null)} title="Schließen">
+              ✕
+            </button>
+          </div>
+          <div className="inspector-subtitle">
+            {selection.ort.bezeichnung} · Lagertechnik {selection.ort.lagertechnik}
+          </div>
+          {selection.platz ? <PlatzPanel platz={selection.platz} /> : <OrtPanel ort={selection.ort} />}
+        </>
+      ) : (
+        <div className="inspector-body">
+          <div className="inspector-muted">Artikelnummer suchen oder ein Lager anklicken.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
+  const { setSelection } = useSelection();
+  return (
+    <div className="inspector-body">
+      <div className="inspector-table-header">
+        <span className="inspector-col-platz">Lager</span>
+        <span className="inspector-col-platz">Platz</span>
+        <span className="inspector-col-bez">Bezeichnung</span>
+        <span className="inspector-col-bestand">Bestand</span>
       </div>
-      {selection.platz ? <PlatzPanel platz={selection.platz} /> : <OrtPanel ort={selection.ort} />}
+      <div className="inspector-table">
+        {plätze.length === 0 && <div className="inspector-muted">Keine Plätze gefunden.</div>}
+        {plätze.map((p) => (
+          <button
+            key={`${p.ort.lagerkennung}-${p.platz.platzId}`}
+            className="inspector-table-row article-row"
+            onClick={() => setSelection({ ort: p.ort, platz: p.platz })}
+            title="In der 3D-Welt hervorheben"
+          >
+            <span className="inspector-col-platz inspector-col-platz-val">{p.ort.lagerkennung}</span>
+            <span className="inspector-col-platz inspector-col-platz-val">{p.platz.kurz || `#${p.platz.platzId}`}</span>
+            <span className="inspector-col-bez inspector-col-bez-val">{p.platz.platzbezeichnung}</span>
+            <span className="inspector-col-bestand" style={{ color: bestandColor(p.bestand) }}>
+              {fmt(p.bestand)}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
 function PlatzPanel({ platz }: { platz: Lagerplatz }) {
   const total = platz.bestaende.reduce((s, b) => s + b.bestand, 0);
+  const gewicht = platzGewicht(platz);
+  const max = platzMaxGewicht(platz);
+  const überlastet = max > 0 && gewicht > max;
   return (
     <div className="inspector-body">
       <div className="inspector-row">
         <span className="inspector-platz">Platz {platz.kurz || `#${platz.platzId}`}</span>
         <span className="inspector-total">Σ {fmt(total)}</span>
+      </div>
+      <div className="inspector-row">
+        <span className="inspector-muted">Last</span>
+        <span className="inspector-value" style={{ color: überlastet ? '#e74c3c' : '#e8ecf1' }}>
+          {fmtKg(gewicht)}{max > 0 ? ` / ${fmtKg(max)}` : ''}
+        </span>
       </div>
       {platz.bestaende.length === 0 ? (
         <div className="inspector-muted">Keine Bestände auf diesem Platz</div>
@@ -85,9 +219,12 @@ function PlatzPanel({ platz }: { platz: Lagerplatz }) {
               <div className="inspector-artikel">{b.artikelnummer}</div>
               <div className="inspector-muted">{b.bezeichnung1}</div>
             </div>
-            <span className="inspector-value" style={{ color: bestandColor(b.bestand) }}>
-              {fmt(b.bestand)}
-            </span>
+            <div className="inspector-col" style={{ alignItems: 'flex-end' }}>
+              <span className="inspector-value" style={{ color: bestandColor(b.bestand) }}>
+                {fmt(b.bestand)}
+              </span>
+              {b.gewicht > 0 && <span className="inspector-muted">{fmtKg(b.bestand * b.gewicht)}</span>}
+            </div>
           </div>
         ))
       )}
@@ -113,6 +250,9 @@ function OrtPanel({ ort }: { ort: Lagerort }) {
   const rows = ortRows(ort);
   const gesamt = rows.reduce((s, r) => s + r.bestand, 0);
   const belegt = new Set(rows.map((r) => r.platzId)).size;
+  const gewicht = ortGewicht(ort);
+  const max = ortMaxGewicht(ort);
+  const überlastet = max > 0 && gewicht > max;
   return (
     <div className="inspector-body">
       <div className="inspector-row">
@@ -120,6 +260,12 @@ function OrtPanel({ ort }: { ort: Lagerort }) {
           {ort.plaetze.length} Plätze · {belegt} belegt
         </span>
         <span className="inspector-total">Σ {fmt(gesamt)}</span>
+      </div>
+      <div className="inspector-row">
+        <span className="inspector-muted">Gesamtlast</span>
+        <span className="inspector-value" style={{ color: überlastet ? '#e74c3c' : '#e8ecf1' }}>
+          {fmtKg(gewicht)}{max > 0 ? ` / ${fmtKg(max)}` : ''}
+        </span>
       </div>
       <div className="inspector-table-header">
         <span className="inspector-col-platz">Platz</span>

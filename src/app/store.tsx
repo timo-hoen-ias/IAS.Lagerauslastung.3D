@@ -158,7 +158,7 @@ export function useRackTransforms(): Record<string, RackTransform> {
 export function useEffectiveRacks(placements: RackPlacement[]): PlacedRack[] {
   const t = useRackTransforms();
   return useMemo(
-    () => placements.map((p) => applyTransform(p, t[p.ort.lagerkennung] ?? IDENTITY_TRANSFORM)),
+    () => placements.map((p) => applyTransform(p, t[p.key] ?? IDENTITY_TRANSFORM)),
     [placements, t],
   );
 }
@@ -181,6 +181,50 @@ export function useSelectedRack(): string | null {
     },
     () => selectedRack,
     () => selectedRack,
+  );
+}
+
+// ---- Ausgewählter Artikel (Suche + Hervorhebung) ----------------------------
+
+let selectedArticle: string | null = null;
+const articleListeners = new Set<() => void>();
+
+export function setSelectedArticle(artikel: string | null): void {
+  selectedArticle = artikel;
+  for (const l of articleListeners) l();
+}
+
+export function useSelectedArticle(): string | null {
+  return useSyncExternalStore(
+    (cb) => {
+      articleListeners.add(cb);
+      return () => articleListeners.delete(cb);
+    },
+    () => selectedArticle,
+    () => selectedArticle,
+  );
+}
+
+// ---- TransformControls-Modus (Bearbeiten) -----------------------------------
+
+export type TransformMode = 'translate' | 'rotate' | 'scale';
+
+let transformMode: TransformMode = 'translate';
+const transformModeListeners = new Set<() => void>();
+
+export function setTransformMode(m: TransformMode): void {
+  transformMode = m;
+  for (const l of transformModeListeners) l();
+}
+
+export function useTransformMode(): TransformMode {
+  return useSyncExternalStore(
+    (cb) => {
+      transformModeListeners.add(cb);
+      return () => transformModeListeners.delete(cb);
+    },
+    () => transformMode,
+    () => transformMode,
   );
 }
 

@@ -19,7 +19,7 @@ export default function TargetMarker({ racks }: { racks: PlacedRack[] }) {
   });
 
   if (!selection) return null;
-  const rack = racks.find((r) => r.key === selection.ort.lagerkennung);
+  const rack = racks.find((r) => r.ort.lagerkennung === selection.ort.lagerkennung);
   if (!rack) return null;
 
   return (

@@ -43,9 +43,9 @@ export default function Grid({ racks }: { racks: PlacedRack[] }) {
               key={`x${x}`}
               position={[x, 0.06, labels.b.maxZ + 1.5]}
               rotation-x={-Math.PI / 2}
-              fontSize={0.9}
+              fontSize={0.6}
               color={LINE_WHITE}
-              outlineWidth={0.05}
+              outlineWidth={0.04}
               outlineColor="#0a0c10"
               anchorX="center"
               anchorY="middle"
@@ -58,9 +58,9 @@ export default function Grid({ racks }: { racks: PlacedRack[] }) {
               key={`z${z}`}
               position={[labels.b.minX - 1.5, 0.06, z]}
               rotation-x={-Math.PI / 2}
-              fontSize={0.9}
+              fontSize={0.6}
               color={LINE_WHITE}
-              outlineWidth={0.05}
+              outlineWidth={0.04}
               outlineColor="#0a0c10"
               anchorX="center"
               anchorY="middle"

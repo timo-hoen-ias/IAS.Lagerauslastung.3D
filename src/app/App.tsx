@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import type { LagerDaten } from '../shared/types';
-import { SelectionProvider, getTransform, setTransform, useEffectiveRacks, useSelectedRack } from './store';
+import { SelectionProvider, getTransform, setSelectedArticle, setTransform, useEffectiveRacks, useSelectedRack } from './store';
 import WarehouseScene from './scene/WarehouseScene';
 import { layoutRacks } from './scene/layout';
 import { rotateRack, scaleRack } from './scene/transform';
@@ -13,30 +13,50 @@ import Inspector from './ui/Inspector';
 
 export type Mode = 'orbit' | 'walk' | 'topdown';
 
+export type DbInfo = { id: string; name: string; mandanten: number[] };
+
 const MODE_ORDER: Mode[] = ['orbit', 'walk', 'topdown'];
 
 export default function App() {
   const [data, setData] = useState<LagerDaten | null>(null);
+  const [dbs, setDbs] = useState<DbInfo[]>([]);
+  const [db, setDb] = useState<string>('default');
+  const [mandant, setMandant] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('orbit');
   const [speed, setSpeed] = useState(10);
   const [edit, setEdit] = useState(false);
   const [measure, setMeasure] = useState(false);
-  const [lighting, setLighting] = useState(false);
+  const [lighting, setLighting] = useState(true);
 
   const placements = useMemo(() => (data ? layoutRacks(data.lagerorte) : []), [data]);
   const racks = useEffectiveRacks(placements);
   const selectedRack = useSelectedRack();
 
   useEffect(() => {
-    fetch('/api/lager')
+    fetch('/api/dbs')
+      .then((r) => r.json())
+      .then((d: { dbs?: DbInfo[]; error?: string }) => {
+        if (d.error) throw new Error(d.error);
+        setDbs(d.dbs ?? []);
+      })
+      .catch((e: unknown) => setError(String(e instanceof Error ? e.message : e)));
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ db });
+    if (mandant != null) params.set('mandant', String(mandant));
+    setData(null);
+    setError(null);
+    setSelectedArticle(null);
+    fetch(`/api/lager?${params}`)
       .then((r) => r.json())
       .then((d: LagerDaten & { error?: string }) => {
         if (d.error) throw new Error(d.error);
         setData(d);
       })
       .catch((e: unknown) => setError(String(e instanceof Error ? e.message : e)));
-  }, []);
+  }, [db, mandant]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -97,6 +117,11 @@ export default function App() {
         </Canvas>
         <HUD
           data={data}
+          dbs={dbs}
+          db={db}
+          setDb={setDb}
+          mandant={mandant}
+          setMandant={setMandant}
           error={error}
           mode={mode}
           setMode={setMode}
@@ -112,7 +137,7 @@ export default function App() {
         <Minimap racks={racks} visible={mode === 'walk'} />
         {mode === 'walk' && <Crosshair />}
         <Readout mode={mode} />
-        <Inspector />
+        <Inspector data={data} />
       </SelectionProvider>
     </div>
   );

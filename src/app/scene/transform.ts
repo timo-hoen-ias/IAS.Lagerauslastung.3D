@@ -1,5 +1,5 @@
 import type { Lagerort } from '../../shared/types';
-import type { RackPlacement } from './layout';
+import type { RackKind, RackPlacement } from './layout';
 
 export type RackScale = { x: number; y: number; z: number };
 export type RackTransform = { x: number; z: number; rotY: number; scale: RackScale };
@@ -11,9 +11,13 @@ export const SCALE_MAX = 2;
 export type PlacedRack = {
   key: string;
   ort: Lagerort;
+  kind: RackKind;
+  gang: number;
   cols: number;
   levels: number;
   depth: number;
+  flat: boolean;
+  cellH: number;
   position: [number, number, number];
   rotY: number;
   size: { w: number; h: number; d: number };
@@ -93,11 +97,15 @@ export function resizeHeight(baseH: number, pointerY: number, handleOffset: numb
 
 export function applyTransform(base: RackPlacement, t: RackTransform): PlacedRack {
   return {
-    key: base.ort.lagerkennung,
+    key: base.key,
     ort: base.ort,
+    kind: base.kind,
+    gang: base.gang,
     cols: base.cols,
     levels: base.levels,
     depth: base.depth,
+    flat: base.flat,
+    cellH: base.cellH,
     position: [base.origin[0] + t.x, 0, base.origin[2] + t.z],
     rotY: t.rotY,
     size: { w: base.size.w * t.scale.x, h: base.size.h * t.scale.y, d: base.size.d * t.scale.z },

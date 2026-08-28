@@ -1,0 +1,172 @@
+import { describe, expect, it } from 'vitest';
+import type { LagerDaten, Lagerbestand, Lagerort, Lagerplatz } from '../shared/types';
+import { alleArtikel, artikelLagerplätze, filterArtikel, plätzeMitArtikel, platzWorld } from './article';
+import type { PlacedRack, RackTransform } from './scene/transform';
+
+const bestand = (artikelnummer: string, bezeichnung1: string, bestand: number): Lagerbestand => ({
+  artikelnummer,
+  bezeichnung1,
+  matchcode: bezeichnung1,
+  bestand,
+  verfuegbarkeit: bestand,
+  gewicht: 0,
+});
+
+const platz = (id: number, bestaende: Lagerbestand[]): Lagerplatz => ({
+  platzId: id,
+  dim: { d1: 0, d2: 0, d3: 0 },
+  ebene: 0,
+  kurz: `P${id}`,
+  platzbezeichnung: `Platz ${id}`,
+  masse: { hoehe: 60, breite: 100, laenge: 100 },
+  maxGewicht: 0,
+  bestaende,
+});
+
+const ort = (lagerkennung: string, plaetze: Lagerplatz[]): Lagerort => ({
+  lagerkennung,
+  bezeichnung: `Lager ${lagerkennung}`,
+  lagertechnik: 'LTD0ST',
+  dims: { d1: 0, d2: 0, d3: 0 },
+  plaetze,
+});
+
+const data: LagerDaten = {
+  mandant: 1,
+  lagerorte: [
+    ort('LAG', [
+      platz(1, [bestand('A1', 'Artikel Eins', 10), bestand('B2', 'B Zwei', 3)]),
+      platz(2, [bestand('A1', 'Artikel Eins', 5)]),
+    ]),
+    ort('KUEHL', [platz(10, [bestand('A1', 'Artikel Eins', 7), bestand('C3', 'C Drei', 2)])]),
+  ],
+};
+
+describe('alleArtikel', () => {
+  it('sammelt Artikel dedupliziert, summiert Bestand, sortiert nach Nummer', () => {
+    const liste = alleArtikel(data);
+    expect(liste.map((a) => a.artikelnummer)).toEqual(['A1', 'B2', 'C3']);
+    expect(liste.find((a) => a.artikelnummer === 'A1')).toMatchObject({ bezeichnung1: 'Artikel Eins', gesamt: 22 });
+  });
+});
+
+describe('filterArtikel', () => {
+  const liste = alleArtikel(data);
+
+  it('liefert bei leerer Query nichts', () => {
+    expect(filterArtikel(liste, '')).toEqual([]);
+    expect(filterArtikel(liste, '   ')).toEqual([]);
+  });
+
+  it('präfix-Treffer der Nummer zuerst', () => {
+    const t = filterArtikel(liste, 'a');
+    expect(t[0]!.artikelnummer).toBe('A1');
+  });
+
+  it('findet auch enthaltene Nummern case-insensitiv', () => {
+    expect(filterArtikel(liste, '1').map((a) => a.artikelnummer)).toEqual(['A1']);
+  });
+
+  it('findet Treffer über die Bezeichnung', () => {
+    expect(filterArtikel(liste, 'eins').map((a) => a.artikelnummer)).toEqual(['A1']);
+  });
+
+  it('liefert nichts bei keiner Übereinstimmung', () => {
+    expect(filterArtikel(liste, 'xyz')).toEqual([]);
+  });
+
+  it('kappt bei limit', () => {
+    const viele = ['A1', 'B2', 'C3', 'D4', 'E5'].map((artikelnummer) => ({
+      artikelnummer,
+      bezeichnung1: 'Artikel X',
+      gesamt: 1,
+    }));
+    expect(filterArtikel(viele, '', 3)).toEqual([]);
+    expect(filterArtikel(viele, 'artikel', 2).length).toBe(2);
+  });
+});
+
+describe('artikelLagerplätze', () => {
+  it('findet alle Plätze eines Artikels, sortiert nach Lagerort und Platz', () => {
+    const plätze = artikelLagerplätze(data, 'A1');
+    expect(plätze.map((p) => `${p.ort.lagerkennung}/${p.platz.platzId}`)).toEqual(['KUEHL/10', 'LAG/1', 'LAG/2']);
+    expect(plätze[0]).toMatchObject({ bestand: 7 });
+  });
+
+  it('liefert nichts für unbekannte Artikel', () => {
+    expect(artikelLagerplätze(data, 'NIX')).toEqual([]);
+  });
+});
+
+describe('plätzeMitArtikel', () => {
+  const rack: PlacedRack = {
+    key: 'LAG',
+    ort: data.lagerorte[1]!,
+    kind: 'single',
+    gang: 0,
+    cols: 1,
+    levels: 1,
+    depth: 1,
+    flat: true,
+    cellH: 0.6,
+    position: [0, 0, 0],
+    rotY: 0,
+    size: { w: 0.95, h: 0.6, d: 0.95 },
+  };
+
+  it('filtert die Plätze der Regal-Instanz auf den Artikel', () => {
+    const mitArtikel = plätzeMitArtikel(rack, 'C3');
+    expect(mitArtikel).toHaveLength(1);
+    expect(mitArtikel[0]).toMatchObject({ bestand: 2 });
+    expect(plätzeMitArtikel(rack, 'A1')).toHaveLength(1);
+  });
+});
+
+describe('platzWorld', () => {
+  it('berechnet die Zellenposition ohne Rotation/Skalierung', () => {
+    const rack: PlacedRack = {
+      key: 'LAG',
+      ort: data.lagerorte[1]!,
+      kind: 'single',
+      gang: 0,
+      cols: 1,
+      levels: 1,
+      depth: 1,
+      flat: true,
+      cellH: 0.6,
+      position: [10, 0, 20],
+      rotY: 0,
+      size: { w: 0.95, h: 0.6, d: 0.95 },
+    };
+    const t: RackTransform = { x: 0, z: 0, rotY: 0, scale: { x: 1, y: 1, z: 1 } };
+    const w = platzWorld(rack, t, data.lagerorte[1]!.plaetze[0]!);
+    expect(w).toEqual({ x: 10, y: 0.3, z: 20, w: 0.95, d: 0.95, h: 0.6 });
+  });
+
+  it('berücksichtigt Rotation (90°) und Skalierung', () => {
+    const zelle = platz(5, [bestand('A1', 'A', 1)]);
+    const zelleRack = { ...zelle, dim: { d1: 0, d2: 0, d3: 3 } };
+    const rack: PlacedRack = {
+      key: 'KUEHL#0',
+      ort: data.lagerorte[0]!,
+      kind: 'rack',
+      gang: 0,
+      cols: 1,
+      levels: 2,
+      depth: 3,
+      flat: false,
+      cellH: 0.6,
+      position: [10, 0, 20],
+      rotY: Math.PI / 2,
+      size: { w: 1, h: 1.55, d: 3 },
+    };
+    const t: RackTransform = { x: 0, z: 0, rotY: 0, scale: { x: 2, y: 1, z: 2 } };
+    const w = platzWorld(rack, t, zelleRack);
+    expect(w.x).toBeCloseTo(8, 5);
+    expect(w.y).toBeCloseTo(0.55, 5);
+    expect(w.z).toBeCloseTo(20, 5);
+    expect(w.w).toBeCloseTo(1.9, 5);
+    expect(w.d).toBeCloseTo(1.9, 5);
+    expect(w.h).toBeCloseTo(0.6, 5);
+  });
+});

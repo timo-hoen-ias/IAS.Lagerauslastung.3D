@@ -29,14 +29,14 @@ const ort: Lagerort = {
   plaetze: [],
 };
 
-const base = { ...rackMetrics(ort), ort, origin: [10, 0, 20] as [number, number, number] };
-
+const base = {
+  ...rackMetrics(ort),
+  key: 'KUEHL#0',
+  gang: 0,
+  ort,
+  origin: [10,0,20] as [number, number, number],
+};
 describe('snap', () => {
-  it('snap1 rundet auf ganze Meter', () => {
-    expect(snap1(3.49)).toBe(3);
-    expect(snap1(3.5)).toBe(4);
-    expect(snap1(-2.6)).toBe(-3);
-  });
 
   it('snap45 rundet auf 45°-Vielfache', () => {
     expect(snap45(89)).toBe(90);
@@ -66,7 +66,7 @@ describe('applyTransform', () => {
     expect(p.size.w).toBeCloseTo(base.size.w * 1.5, 5);
     expect(p.size.h).toBeCloseTo(base.size.h * 2, 5);
     expect(p.size.d).toBeCloseTo(base.size.d * 0.5, 5);
-    expect(p.key).toBe('KUEHL');
+    expect(p.key).toBe('KUEHL#0');
   });
 
   it('Identität lässt das Basis-Layout unverändert', () => {
