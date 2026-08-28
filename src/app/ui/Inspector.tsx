@@ -1,17 +1,59 @@
+import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { Lagerort, Lagerplatz } from '../../shared/types';
 import { useSelection } from '../store';
-import DragPanel from './DragPanel';
+
+const WIDTH_KEY = 'wm-inspector-width';
+const WIDTH_MIN = 240;
+
+function clampWidth(w: number): number {
+  return Math.min(Math.max(w, WIDTH_MIN), Math.max(window.innerWidth - 80, WIDTH_MIN));
+}
 
 export default function Inspector() {
   const { selection, setSelection } = useSelection();
+  const [width, setWidth] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(WIDTH_KEY);
+      if (raw) {
+        const n = Number(raw);
+        if (Number.isFinite(n) && n >= WIDTH_MIN) return clampWidth(n);
+      }
+    } catch {
+      /* ungültig – Standard */
+    }
+    return 420;
+  });
+  const widthRef = useRef(width);
+  widthRef.current = width;
+  const dragRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  const onResizeDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    dragRef.current = { startX: e.clientX, startW: widthRef.current };
+    const move = (ev: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      setWidth(clampWidth(d.startW + (d.startX - ev.clientX)));
+    };
+    const up = () => {
+      dragRef.current = null;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      try {
+        localStorage.setItem(WIDTH_KEY, String(widthRef.current));
+      } catch {
+        /* Speicher nicht verfügbar – ignorieren */
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }, []);
+
   if (!selection) return null;
 
   return (
-    <DragPanel
-      id="inspector"
-      className="inspector glass"
-      defaultPos={() => ({ x: Math.max(16, window.innerWidth - 470), y: Math.max(16, window.innerHeight - 430) })}
-    >
+    <div className="inspector glass" style={{ width }}>
+      <div className="inspector-resize" onPointerDown={onResizeDown} title="Breite ändern" />
       <div className="inspector-title-row">
         <span className="inspector-title">{selection.ort.lagerkennung}</span>
         <button className="hud-btn inspector-close" onClick={() => setSelection(null)} title="Schließen">
@@ -22,7 +64,7 @@ export default function Inspector() {
         {selection.ort.bezeichnung} · Lagertechnik {selection.ort.lagertechnik}
       </div>
       {selection.platz ? <PlatzPanel platz={selection.platz} /> : <OrtPanel ort={selection.ort} />}
-    </DragPanel>
+    </div>
   );
 }
 

@@ -253,24 +253,10 @@ export default function Rack({
       <FloorFrame w={placed.size.w} d={placed.size.d} boost={dragging} />
 
       {dragging && (
-        <mesh position={[0, 0.035, 0]} rotation-x={-Math.PI / 2}>
+        <mesh position={[0,0.035,0]} rotation-x={-Math.PI / 2}>
           <planeGeometry args={[placed.size.w + 0.6, placed.size.d + 0.6]} />
-          <meshBasicMaterial color="#7ec8ff" transparent opacity={0.18} blending={THREE.AdditiveBlending} depthWrite={false} />
+          <meshBasicMaterial color="#11151c" transparent opacity={0.55} />
         </mesh>
-      )}
-
-      {rackActive && (
-        <Billboard position={[0, placed.size.h + 1.6, 0]}>
-          <group>
-            <mesh>
-              <planeGeometry args={[3.6,0.7]} />
-              <meshBasicMaterial color="#11151c" transparent opacity={0.7} />
-            </mesh>
-            <Text position={[0,0.03,0.01]} fontSize={0.5} color="#7ec8ff" outlineWidth={0.04} outlineColor="#0a0c10" anchorX="center" anchorY="middle">
-              {fmtDim(placed.size.w)} × {fmtDim(placed.size.d)} × {fmtDim(placed.size.h)} m
-            </Text>
-          </group>
-        </Billboard>
       )}
 
       <group position={[0, 0, placed.size.d / 2 + 1.2]}>

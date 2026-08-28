@@ -18,6 +18,7 @@ body,
   inset: 0;
   user-select: none;
   -webkit-user-select: none;
+  --topbar-h: 54px;
 }
 
 .wm-root input,
@@ -53,6 +54,7 @@ body,
   top: 0;
   left: 0;
   right: 0;
+  height: var(--topbar-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -278,7 +280,7 @@ body,
   border-radius: 4px;
   font-family: Consolas, 'Courier New', monospace;
   box-shadow: 0 0 14px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(14px) saturate(140%);
 }
 
 .glass:not(.hud-top) {
@@ -430,15 +432,39 @@ body,
   color: #aab4c0;
 }
 
-/* Bestands-Panel (Inspector) */
+/* Bestands-Panel (Inspector) – rechts angedockt, volle Höhe */
 .inspector {
-  position: absolute;
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
   width: 420px;
   padding: 12px 14px;
   font-size: 13px;
+  border-radius: 0;
+}
+
+.inspector.glass {
+  max-height: 100vh;
+  border-right: none;
+}
+
+.inspector-resize {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.inspector-resize:hover,
+.inspector-resize:active {
+  background: rgba(126, 200, 255, 0.3);
 }
 
 .inspector-title-row {
@@ -470,6 +496,9 @@ body,
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .inspector-row {
@@ -527,7 +556,8 @@ body,
 .inspector-table {
   display: flex;
   flex-direction: column;
-  max-height: 280px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
