@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LagerDaten, Lagerbestand, Lagerort, Lagerplatz } from '../shared/types';
-import { alleArtikel, artikelLagerplätze, filterArtikel, plätzeMitArtikel, platzWorld } from './article';
+import { alleArtikel, artikelLagerplätze, filterArtikel, platzIdsMitArtikel, plätzeMitArtikel, platzWorld } from './article';
 import type { PlacedRack, RackTransform } from './scene/transform';
 
 const bestand = (artikelnummer: string, bezeichnung1: string, bestand: number): Lagerbestand => ({
@@ -95,6 +95,20 @@ describe('artikelLagerplätze', () => {
 
   it('liefert nichts für unbekannte Artikel', () => {
     expect(artikelLagerplätze(data, 'NIX')).toEqual([]);
+  });
+});
+
+describe('platzIdsMitArtikel', () => {
+  it('liefert die platzIds der Plätze mit dem Artikel', () => {
+    const plaetze = data.lagerorte[0]!.plaetze;
+    expect(platzIdsMitArtikel(plaetze, 'A1')).toEqual(new Set([1, 2]));
+    expect(platzIdsMitArtikel(plaetze, 'B2')).toEqual(new Set([1]));
+  });
+
+  it('liefert leeres Set bei unbekanntem oder leerem Artikel', () => {
+    const plaetze = data.lagerorte[0]!.plaetze;
+    expect(platzIdsMitArtikel(plaetze, 'NIX')).toEqual(new Set());
+    expect(platzIdsMitArtikel(plaetze, null)).toEqual(new Set());
   });
 });
 

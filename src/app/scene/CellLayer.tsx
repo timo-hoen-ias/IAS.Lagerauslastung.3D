@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ThreeEvent } from '@react-three/fiber';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Lagerort, Lagerplatz } from '../../shared/types';
-import { useSelection } from '../store';
+import { platzIdsMitArtikel } from '../article';
+import { useSelectedArticle, useSelection } from '../store';
 import { cellSegments, HOVER_COLOR, type CellSeg } from './Cell';
 import { cellLocalPosition, cellSize } from './layout';
 import type { PlacedRack } from './transform';
@@ -25,12 +26,24 @@ export default function CellLayer({
   ort: Lagerort;
 }) {
   const { setSelection, selection } = useSelection();
+  const artikel = useSelectedArticle();
   const { segs } = useMemo(() => cellSegments(plaetze, placed), [plaetze, placed]);
   const filled = useMemo(() => segs.filter((s) => !s.empty), [segs]);
   const empty = useMemo(() => segs.filter((s) => s.empty), [segs]);
   const filledRef = useRef<THREE.InstancedMesh>(null);
   const emptyRef = useRef<THREE.InstancedMesh>(null);
   const [hoverPlatz, setHoverPlatz] = useState<number>(-1);
+
+  // platzIds, auf denen der gesuchte Artikel liegt -> Kiste cyan hervorheben.
+  const artikelPlatzIds = useMemo(() => platzIdsMitArtikel(plaetze, artikel), [plaetze, artikel]);
+  const artikelSegIdx = useMemo(() => {
+    if (artikelPlatzIds.size === 0) return [];
+    const out: number[] = [];
+    for (let i = 0; i < filled.length; i++) {
+      if (artikelPlatzIds.has(filled[i]!.platzId)) out.push(i);
+    }
+    return out;
+  }, [artikelPlatzIds, filled]);
 
   const selectedPlatzId = selection?.ort.lagerkennung === rackKey ? (selection?.platz?.platzId ?? -1) : -1;
 
@@ -61,13 +74,27 @@ export default function CellLayer({
       if (!mesh) return;
       for (let i = 0; i < list.length; i++) {
         const s = list[i]!;
-        mesh.setColorAt(i, color.set(s.platzId === hoverPlatz ? HOVER_COLOR : s.color));
+        const hl = s.platzId === hoverPlatz || artikelPlatzIds.has(s.platzId);
+        mesh.setColorAt(i, color.set(hl ? HOVER_COLOR : s.color));
       }
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     };
     set(filledRef.current, filled);
     set(emptyRef.current, empty);
-  }, [hoverPlatz, filled, empty]);
+  }, [hoverPlatz, artikelPlatzIds, filled, empty]);
+
+  // Pulsierendes Leuchten der Artikel-Kisten (cyan -> weiß, nur die wenigen Treffer).
+  const pulseC = useMemo(() => new THREE.Color(HOVER_COLOR), []);
+  const whiteC = useMemo(() => new THREE.Color('#ffffff'), []);
+  const tmpC = useMemo(() => new THREE.Color(), []);
+  useFrame(({ clock }) => {
+    const mesh = filledRef.current;
+    if (!mesh || artikelSegIdx.length === 0) return;
+    const k = 0.5 + 0.5 * Math.sin(clock.elapsedTime * Math.PI * 2);
+    tmpC.copy(pulseC).lerp(whiteC, k * 0.6);
+    for (const i of artikelSegIdx) mesh.setColorAt(i, tmpC);
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  });
 
   // Drahtgitter um die gehoverte oder gewählte Zelle (ein einziges lineSegments).
   const targetPlatzId = hoverPlatz !== -1 ? hoverPlatz : selectedPlatzId;

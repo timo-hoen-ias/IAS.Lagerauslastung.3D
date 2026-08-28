@@ -18,6 +18,7 @@ export default function Inspector({ data }: { data: LagerDaten | null }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [hl, setHl] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [width, setWidth] = useState<number>(() => {
     try {
       const raw = localStorage.getItem(WIDTH_KEY);
@@ -65,6 +66,7 @@ export default function Inspector({ data }: { data: LagerDaten | null }) {
     setSelectedArticle(nr);
     setQuery(nr);
     setOpen(false);
+    searchRef.current?.blur();
   }, []);
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -79,6 +81,7 @@ export default function Inspector({ data }: { data: LagerDaten | null }) {
       if (v) waehlen(v.artikelnummer);
     } else if (e.key === 'Escape') {
       setOpen(false);
+      searchRef.current?.blur();
     }
   };
 
@@ -88,6 +91,7 @@ export default function Inspector({ data }: { data: LagerDaten | null }) {
       <div className="inspector-search">
         <Search size={14} className="inspector-search-icon" />
         <input
+          ref={searchRef}
           className="inspector-search-input"
           value={query}
           placeholder="Artikelnummer suchen…"

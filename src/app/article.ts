@@ -65,6 +65,16 @@ export function artikelLagerplätze(data: LagerDaten, artikelnummer: string): Ar
 
 export type PlatzRef = { platz: Lagerplatz; bestand: number };
 
+/** platzIds der übergebenen Plätze, auf denen der Artikel liegt (für die 3D-Hervorhebung). */
+export function platzIdsMitArtikel(plaetze: Lagerplatz[], artikelnummer: string | null): Set<number> {
+  const set = new Set<number>();
+  if (!artikelnummer) return set;
+  for (const p of plaetze) {
+    if (p.bestaende.some((b) => b.artikelnummer === artikelnummer)) set.add(p.platzId);
+  }
+  return set;
+}
+
 /** Plätze einer Regal-Instanz, die den Artikel enthalten. */
 export function plätzeMitArtikel(rack: PlacedRack, artikelnummer: string): PlatzRef[] {
   const out: PlatzRef[] = [];
