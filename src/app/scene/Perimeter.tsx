@@ -1,25 +1,11 @@
 import { useMemo } from 'react';
 import { Line } from '@react-three/drei';
-import { rackAabb, type PlacedRack } from './transform';
+import { rackBounds, type PlacedRack } from './transform';
 
 const MARGIN = 4;
 
 export default function Perimeter({ racks }: { racks: PlacedRack[] }) {
-  const bounds = useMemo(() => {
-    if (racks.length === 0) return null;
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minZ = Infinity;
-    let maxZ = -Infinity;
-    for (const r of racks) {
-      const b = rackAabb(r);
-      minX = Math.min(minX, b.minX);
-      maxX = Math.max(maxX, b.maxX);
-      minZ = Math.min(minZ, b.minZ);
-      maxZ = Math.max(maxZ, b.maxZ);
-    }
-    return { minX: minX - MARGIN, maxX: maxX + MARGIN, minZ: minZ - MARGIN, maxZ: maxZ + MARGIN };
-  }, [racks]);
+  const bounds = useMemo(() => rackBounds(racks, MARGIN), [racks]);
 
   if (!bounds) return null;
   const { minX, maxX, minZ, maxZ } = bounds;

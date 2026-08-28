@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { OrbitControls, GizmoHelper, GizmoViewcube } from '@react-three/drei';
+import { OrbitControls, GizmoHelper, GizmoViewcube, Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import { getTransform, useDragActive } from '../store';
 import { FLOOR } from '../colors';
@@ -17,6 +17,7 @@ import ArticleMarkers from './ArticleMarkers';
 import CameraReporter from './CameraReporter';
 import Perimeter from './Perimeter';
 import FloorMask from './FloorMask';
+import Walls from './Walls';
 import type { Mode } from '../App';
 
 export default function WarehouseScene({
@@ -26,6 +27,7 @@ export default function WarehouseScene({
   edit,
   measure,
   lighting,
+  walls,
 }: {
   racks: PlacedRack[];
   mode: Mode;
@@ -33,9 +35,17 @@ export default function WarehouseScene({
   edit: boolean;
   measure: boolean;
   lighting: boolean;
+  walls: boolean;
 }) {
   const dragActive = useDragActive();
   const interactive = (mode === 'orbit' || mode === 'topdown') && !edit && !measure;
+
+  const wallHeight = useMemo(() => {
+    if (racks.length === 0) return 0;
+    let maxTop = 0;
+    for (const r of racks) maxTop = Math.max(maxTop, r.position[1] + r.size.h);
+    return Math.min(12, Math.max(3, maxTop + 1));
+  }, [racks]);
 
   const shadow = useMemo(() => {
     if (racks.length === 0) return null;
@@ -57,8 +67,8 @@ export default function WarehouseScene({
 
   return (
     <>
-      <color attach="background" args={[FLOOR]} />
-      <fog attach="fog" args={[FLOOR, 70, 220]} />
+      <Sky distance={300} sunPosition={[30, 50, 20]} />
+      <fog attach="fog" args={['#c3d6ea', 70, 220]} />
 
       <ambientLight intensity={0.75} />
       <directionalLight
@@ -87,6 +97,7 @@ export default function WarehouseScene({
       <Grid racks={racks} />
       <FloorMask racks={racks} />
       <Perimeter racks={racks} />
+      {walls && <Walls racks={racks} height={wallHeight} />}
 
       {racks.map((r) => (
         <Rack key={r.key} placed={r} transform={getTransform(r.key)} edit={edit} interactive={interactive} />
