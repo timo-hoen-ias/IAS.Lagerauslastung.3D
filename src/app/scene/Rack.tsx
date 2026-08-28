@@ -86,13 +86,13 @@ export default function Rack({
       <group scale={[transform.scale.x, transform.scale.y, transform.scale.z]}>
         {!placed.flat && (
           <>
-            <mesh geometry={darkGeo!} castShadow receiveShadow>
+            <mesh geometry={darkGeo!} castShadow receiveShadow userData={{ rackKey: placed.key }}>
               <meshStandardMaterial color="#262c36" roughness={0.9} />
             </mesh>
-            <mesh geometry={greyGeo!} castShadow receiveShadow>
+            <mesh geometry={greyGeo!} castShadow receiveShadow userData={{ rackKey: placed.key }}>
               <meshStandardMaterial color={color} roughness={0.5} />
             </mesh>
-            <mesh geometry={topGeo!} castShadow>
+            <mesh geometry={topGeo!} castShadow userData={{ rackKey: placed.key }}>
               <meshStandardMaterial color={color} roughness={0.5} transparent opacity={0.45} depthWrite={false} />
             </mesh>
           </>

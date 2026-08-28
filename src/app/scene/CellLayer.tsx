@@ -49,6 +49,7 @@ export default function CellLayer({
       if (!mesh) return;
       for (let i = 0; i < list.length; i++) mesh.setMatrixAt(i, matrices[list[i]!.index]);
       mesh.instanceMatrix.needsUpdate = true;
+      mesh.userData.platzIds = list.map((s) => s.platzId);
     };
     set(filledRef.current, filled);
     set(emptyRef.current, empty);
@@ -112,13 +113,13 @@ export default function CellLayer({
   return (
     <>
       {filled.length > 0 && (
-        <instancedMesh ref={filledRef} args={[undefined, undefined, filled.length]} castShadow {...handlers}>
+        <instancedMesh ref={filledRef} args={[undefined, undefined, filled.length]} castShadow userData={{ rackKey }} {...handlers}>
           <boxGeometry />
           <meshStandardMaterial polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} roughness={0.6} metalness={0.1} />
         </instancedMesh>
       )}
       {empty.length > 0 && (
-        <instancedMesh ref={emptyRef} args={[undefined, undefined, empty.length]} castShadow {...handlers}>
+        <instancedMesh ref={emptyRef} args={[undefined, undefined, empty.length]} castShadow userData={{ rackKey }} {...handlers}>
           <boxGeometry />
           <meshStandardMaterial transparent opacity={0.3} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} roughness={0.6} metalness={0.1} />
         </instancedMesh>

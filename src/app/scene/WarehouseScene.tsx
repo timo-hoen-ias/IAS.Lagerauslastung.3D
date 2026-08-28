@@ -1,8 +1,9 @@
+import { useMemo } from 'react';
 import { OrbitControls, GizmoHelper, GizmoViewcube } from '@react-three/drei';
 import * as THREE from 'three';
 import { getTransform, useDragActive } from '../store';
 import { FLOOR } from '../colors';
-import type { PlacedRack } from './transform';
+import { rackAabb, type PlacedRack } from './transform';
 import Rack from './Rack';
 import RackControls from './RackControls';
 import WalkControls from './WalkControls';
@@ -36,6 +37,24 @@ export default function WarehouseScene({
   const dragActive = useDragActive();
   const interactive = (mode === 'orbit' || mode === 'topdown') && !edit && !measure;
 
+  const shadow = useMemo(() => {
+    if (racks.length === 0) return null;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const r of racks) {
+      const b = rackAabb(r);
+      minX = Math.min(minX, b.minX);
+      maxX = Math.max(maxX, b.maxX);
+      minZ = Math.min(minZ, b.minZ);
+      maxZ = Math.max(maxZ, b.maxZ);
+    }
+    const cx = (minX + maxX) / 2;
+    const cz = (minZ + maxZ) / 2;
+    const half = Math.max((maxX - minX) / 2, (maxZ - minZ) / 2) + 5;
+    return { cx, cz, half };
+  }, [racks]);
+
+  const lightTarget = useMemo(() => new THREE.Object3D(), []);
+
   return (
     <>
       <color attach="background" args={[FLOOR]} />
@@ -43,18 +62,20 @@ export default function WarehouseScene({
 
       <ambientLight intensity={0.75} />
       <directionalLight
-        position={[30, 50, 20]}
+        position={shadow ? [shadow.cx + 30, 50, shadow.cz + 20] : [30, 50, 20]}
+        target={lightTarget}
         intensity={1.1}
         castShadow={lighting}
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-left={-80}
-        shadow-camera-right={80}
-        shadow-camera-top={80}
-        shadow-camera-bottom={-80}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-left={shadow ? -shadow.half : -80}
+        shadow-camera-right={shadow ? shadow.half : 80}
+        shadow-camera-top={shadow ? shadow.half : 80}
+        shadow-camera-bottom={shadow ? -shadow.half : -80}
         shadow-camera-near={0.5}
         shadow-camera-far={300}
       />
+      <primitive object={lightTarget} position={shadow ? [shadow.cx, 0, shadow.cz] : [0, 0, 0]} />
       <directionalLight position={[-40, 40, -30]} intensity={0.35} />
       {lighting && <hemisphereLight args={['#cfe0f0', '#4a4438', 0.35]} />}
 

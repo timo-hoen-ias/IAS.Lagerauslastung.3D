@@ -112,7 +112,7 @@ export default function App() {
   return (
     <div id="wm-root" className="wm-root">
       <SelectionProvider>
-        <Canvas shadows camera={{ position: [0,16,34], fov: 60, near: 0.1, far: 400 }}>
+        <Canvas dpr={[1, 1.5]} shadows camera={{ position: [0,16,34], fov: 60, near: 0.1, far: 400 }}>
           <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} lighting={lighting} />
         </Canvas>
         <HUD

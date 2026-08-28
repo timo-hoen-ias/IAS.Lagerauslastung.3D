@@ -24,11 +24,12 @@ export default function LookTarget({ racks }: { racks: PlacedRack[] }) {
 
     let found: { ort: Lagerort; platz: Lagerplatz | null } | null = null;
     for (const i of intersects) {
-      const ud = i.object.userData as { rackKey?: string; platzId?: number };
+      const ud = i.object.userData as { rackKey?: string; platzIds?: number[] };
       if (!ud.rackKey) continue;
       const rack = byKey.get(ud.rackKey);
       if (rack) {
-        const platz = ud.platzId != null ? (rack.ort.plaetze.find((p) => p.platzId === ud.platzId) ?? null) : null;
+        const platzId = i.instanceId != null ? ud.platzIds?.[i.instanceId] : undefined;
+        const platz = platzId != null ? (rack.ort.plaetze.find((p) => p.platzId === platzId) ?? null) : null;
         found = { ort: rack.ort, platz };
       }
       break;
