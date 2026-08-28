@@ -29,6 +29,7 @@ export default function App() {
   const [edit, setEdit] = useState(false);
   const [measure, setMeasure] = useState(false);
   const [lighting, setLighting] = useState(true);
+  const [walls, setWalls] = useState(false);
 
   const placements = useMemo(() => (data ? layoutRacks(data.lagerorte) : []), [data]);
   const racks = useEffectiveRacks(placements);
@@ -116,7 +117,7 @@ export default function App() {
     <div id="wm-root" className="wm-root">
       <SelectionProvider>
         <Canvas dpr={[1, 1.5]} shadows camera={{ position: [0,16,34], fov: 60, near: 0.1, far: 400 }}>
-          <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} lighting={lighting} />
+          <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} lighting={lighting} walls={walls} />
         </Canvas>
         <HUD
           data={data}
@@ -136,6 +137,8 @@ export default function App() {
           setMeasure={setMeasure}
           lighting={lighting}
           setLighting={setLighting}
+          walls={walls}
+          setWalls={setWalls}
         />
         <Minimap racks={racks} visible={mode === 'walk'} />
         {mode === 'walk' && <Crosshair />}

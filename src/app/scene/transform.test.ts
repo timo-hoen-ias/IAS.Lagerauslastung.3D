@@ -15,6 +15,7 @@ import {
   resizeRackExact,
   rotateRack,
   round05,
+  rackBounds,
   scaleRack,
   snap1,
   snap45,
@@ -192,5 +193,22 @@ describe('resizeRack / resizeFactor / resizeHeightFactor', () => {
 describe('dist2d', () => {
   it('berechnet die Länge einer Strecke', () => {
     expect(dist2d({ x: 0, z: 0 }, { x: 3, z: 4 })).toBe(5);
+  });
+});
+
+describe('rackBounds', () => {
+  it('umschließt alle Regale plus Rand', () => {
+    const a = applyTransform({ ...base, origin: [0, 0, 0] }, IDENTITY_TRANSFORM);
+    const b = applyTransform({ ...base, origin: [10, 0, 20] }, IDENTITY_TRANSFORM);
+    const bounds = rackBounds([a, b], 4)!;
+    expect(bounds).not.toBeNull();
+    expect(bounds.minX).toBeLessThanOrEqual(-4 + 1e-9);
+    expect(bounds.maxX).toBeGreaterThanOrEqual(14 - 1e-9);
+    expect(bounds.minZ).toBeLessThanOrEqual(-4 + 1e-9);
+    expect(bounds.maxZ).toBeGreaterThanOrEqual(24 - 1e-9);
+  });
+
+  it('null bei leerem Bestand', () => {
+    expect(rackBounds([], 4)).toBeNull();
   });
 });

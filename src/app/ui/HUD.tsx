@@ -15,6 +15,7 @@ import {
   RotateCcw,
   RotateCw,
   Ruler,
+  Warehouse,
   X,
 } from 'lucide-react';
 import type { LagerDaten } from '../../shared/types';
@@ -74,6 +75,8 @@ export default function HUD({
   setMeasure,
   lighting,
   setLighting,
+  walls,
+  setWalls,
 }: {
   data: LagerDaten | null;
   dbs: DbInfo[];
@@ -92,6 +95,8 @@ export default function HUD({
   setMeasure: (v: boolean) => void;
   lighting: boolean;
   setLighting: (v: boolean) => void;
+  walls: boolean;
+  setWalls: (v: boolean) => void;
 }) {
   const measurePoints = useMeasurePoints();
   const selectedRack = useSelectedRack();
@@ -175,6 +180,10 @@ export default function HUD({
             <button className={`hud-btn${lighting ? ' active' : ''}`} onClick={() => setLighting(!lighting)}>
               {lighting ? <Lightbulb size={14} /> : <LightbulbOff size={14} />}
               Beleuchtung
+            </button>
+            <button className={`hud-btn${walls ? ' active' : ''}`} onClick={() => setWalls(!walls)}>
+              <Warehouse size={14} />
+              Wände
             </button>
             <button className={`hud-btn${helpOpen ? ' active' : ''}`} onClick={() => setHelpOpen(!helpOpen)}>
               <CircleHelp size={14} />

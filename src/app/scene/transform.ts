@@ -126,3 +126,22 @@ export function rackAabb(placed: PlacedRack): { minX: number; maxX: number; minZ
 export function dist2d(a: { x: number; z: number }, b: { x: number; z: number }): number {
   return Math.hypot(b.x - a.x, b.z - a.z);
 }
+
+export function rackBounds(
+  racks: PlacedRack[],
+  margin: number,
+): { minX: number; maxX: number; minZ: number; maxZ: number } | null {
+  if (racks.length === 0) return null;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const r of racks) {
+    const b = rackAabb(r);
+    minX = Math.min(minX, b.minX);
+    maxX = Math.max(maxX, b.maxX);
+    minZ = Math.min(minZ, b.minZ);
+    maxZ = Math.max(maxZ, b.maxZ);
+  }
+  return { minX: minX - margin, maxX: maxX + margin, minZ: minZ - margin, maxZ: maxZ + margin };
+}

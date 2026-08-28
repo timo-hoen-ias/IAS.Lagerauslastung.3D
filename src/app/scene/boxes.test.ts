@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { floorFrameBoxes, mergeBoxes, rackParts } from './boxes';
+import { floorFrameBoxes, mergeBoxes, rackParts, wallBoxes } from './boxes';
 import { BASE_H, FRAME_CLEAR, LEVEL_GAP, POST, TOP_H, TOP_OVERHANG } from './layout';
 
 describe('mergeBoxes', () => {
@@ -67,5 +67,44 @@ describe('floorFrameBoxes', () => {
   it('Halo ist dicker als der Kern', () => {
     const { core, halo } = floorFrameBoxes(4, 2);
     expect(halo[0]!.size[2]).toBeGreaterThan(core[0]!.size[2]);
+  });
+});
+
+describe('wallBoxes', () => {
+  const bounds = { minX: 0, maxX: 12, minZ: 0, maxZ: 12 };
+  const height = 4;
+
+  it('Brüstung + Dachbalken je Seite, Pfeiler im 3-m-Raster', () => {
+    const boxes = wallBoxes(bounds, height);
+    const piers = boxes.filter((b) => b.size[1] === height);
+    const strips = boxes.filter((b) => b.size[1] !== height);
+    expect(strips.length).toBe(8); // 4 Seiten × (Brüstung + Dach)
+    expect(piers.length).toBe(20); // 4 Seiten × 5 Pfeiler (0,3,6,9,12)
+  });
+
+  it('Brüstung liegt auf dem Boden, Dach endet an der Wandhöhe', () => {
+    const boxes = wallBoxes(bounds, height);
+    const sill = boxes.find((b) => b.pos[1] === 0.5)!;
+    const header = boxes.find((b) => b.pos[1] === height - 0.3)!;
+    expect(sill).toBeDefined();
+    expect(header).toBeDefined();
+    expect(sill.pos[0]).toBe(6);
+    expect(header.pos[0]).toBe(6);
+  });
+
+  it('Fensteröffnung zwischen Brüstung und Dach bleibt frei', () => {
+    const boxes = wallBoxes(bounds, height);
+    const sill = boxes.find((b) => b.pos[1] === 0.5)!;
+    const header = boxes.find((b) => b.pos[1] === height - 0.3)!;
+    const windowH = header.pos[1] - header.size[1] / 2 - (sill.pos[1] + sill.size[1] / 2);
+    expect(windowH).toBeGreaterThan(0);
+    expect(windowH).toBeCloseTo(height - 1 - 0.6, 6);
+  });
+
+  it('setzt einen Abschluss-Pfeiler bei nicht ganzzahliger Rasterlänge', () => {
+    const b = { minX: 0, maxX: 8.5, minZ: 0, maxZ: 3 };
+    const boxes = wallBoxes(b, height);
+    const endPier = boxes.some((bb) => bb.size[1] === height && Math.abs(bb.pos[0] - 8.5) < 1e-6);
+    expect(endPier).toBe(true);
   });
 });

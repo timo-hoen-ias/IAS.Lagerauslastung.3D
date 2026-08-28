@@ -65,8 +65,7 @@ const CORNER_LINE = 0.04;
 const HALO_EXTRA = 0.12;
 
 /** Bodenrahmen-Glühlinien als merged Box-Baupläne (core + halo). */
-export function floorFrameBoxes(w: number, d: number): { core: BoxDesc[]; halo: BoxDesc[] } {
-  const fw = w + FRAME_GAP * 2;
+export function floorFrameBoxes(w: number, d: number): { core: BoxDesc[]; halo: BoxDesc[] } {  const fw = w + FRAME_GAP * 2;
   const fd = d + FRAME_GAP * 2;
   const halfW = fw / 2;
   const halfD = fd / 2;
@@ -99,4 +98,55 @@ export function floorFrameBoxes(w: number, d: number): { core: BoxDesc[]; halo: 
     );
   }
   return { core, halo };
+}
+
+const WALL_THICK = 0.25;
+const WALL_PIER = 0.4;
+const WALL_SILL = 1.0;
+const WALL_HEADER = 0.6;
+const WALL_BAY = 3.0;
+
+export type WallBounds = { minX: number; maxX: number; minZ: number; maxZ: number };
+
+/** Lager-Umfassungswand als Box-Baupläne: Brüstung + Dachbalken + Pfeiler im Raster, dazwischen Fensteröffnungen. */
+export function wallBoxes(
+  bounds: WallBounds,
+  height: number,
+  opts: { thick?: number; pier?: number; sill?: number; header?: number; bay?: number } = {},
+): BoxDesc[] {
+  const { minX, maxX, minZ, maxZ } = bounds;
+  const thick = opts.thick ?? WALL_THICK;
+  const pier = opts.pier ?? WALL_PIER;
+  const sill = opts.sill ?? WALL_SILL;
+  const header = opts.header ?? WALL_HEADER;
+  const bay = opts.bay ?? WALL_BAY;
+  const boxes: BoxDesc[] = [];
+
+  const piers = (from: number, to: number): number[] => {
+    const out: number[] = [];
+    for (let x = from; x <= to - 1e-6; x += bay) out.push(x);
+    if (out[out.length - 1]! < to - 1e-6) out.push(to);
+    return out;
+  };
+
+  const zWall = (z: number) => {
+    const len = maxX - minX;
+    const mid = (minX + maxX) / 2;
+    boxes.push({ pos: [mid, sill / 2, z], size: [len, sill, thick] });
+    boxes.push({ pos: [mid, height - header / 2, z], size: [len, header, thick] });
+    for (const px of piers(minX, maxX)) boxes.push({ pos: [px, height / 2, z], size: [pier, height, thick] });
+  };
+  const xWall = (x: number) => {
+    const len = maxZ - minZ;
+    const mid = (minZ + maxZ) / 2;
+    boxes.push({ pos: [x, sill / 2, mid], size: [thick, sill, len] });
+    boxes.push({ pos: [x, height - header / 2, mid], size: [thick, header, len] });
+    for (const pz of piers(minZ, maxZ)) boxes.push({ pos: [x, height / 2, pz], size: [thick, height, pier] });
+  };
+
+  zWall(minZ);
+  zWall(maxZ);
+  xWall(minX);
+  xWall(maxX);
+  return boxes;
 }
