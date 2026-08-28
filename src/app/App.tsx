@@ -10,6 +10,7 @@ import Minimap from './ui/Minimap';
 import Crosshair from './ui/Crosshair';
 import Readout from './ui/Readout';
 import Inspector from './ui/Inspector';
+import { startLiveBuchungen } from './live';
 
 export type Mode = 'orbit' | 'walk' | 'topdown';
 
@@ -57,6 +58,8 @@ export default function App() {
       })
       .catch((e: unknown) => setError(String(e instanceof Error ? e.message : e)));
   }, [db, mandant]);
+
+  useEffect(() => startLiveBuchungen(), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

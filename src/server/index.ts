@@ -2,9 +2,11 @@ import sql from 'mssql';
 import { LAGER_SQL, PLAETZE_SQL, attachBestaende, groupLagerorte } from './query';
 import { findConnection, listConnections, type DbConnection } from './connections';
 import { perfLagerDaten } from './perf/generate';
+import { BUCHUNGEN_TOPIC, BuchungsRing, parseBuchung, publishBuchung } from './buchungen';
 import type { LagerDaten } from '../shared/types';
 
 const PERF_ID = 'perf';
+const ring = new BuchungsRing();
 
 const pools = new Map<string, Promise<sql.ConnectionPool>>();
 
@@ -47,8 +49,25 @@ async function loadLager(c: DbConnection, mandant?: number): Promise<LagerDaten>
 
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 3001),
-  async fetch(req) {
+  async fetch(req, srv) {
     const url = new URL(req.url);
+    if (req.method === 'GET' && url.pathname === '/api/buchung/ws') {
+      if (srv.upgrade(req)) return;
+      return new Response('WebSocket Upgrade fehlgeschlagen', { status: 400 });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/buchung') {
+      try {
+        const body = (await req.json()) as unknown;
+        const evt = parseBuchung(body);
+        if (!evt) return Response.json({ error: 'Ungültige Buchung' }, { status: 400 });
+        ring.push(evt);
+        publishBuchung(server, evt);
+        return new Response(null, { status: 204 });
+      } catch (err) {
+        console.error('[api/buchung]', err);
+        return Response.json({ error: String((err as Error).message) }, { status: 500 });
+      }
+    }
     if (req.method === 'GET' && url.pathname === '/api/dbs') {
       try {
         const conns = listConnections();
@@ -83,6 +102,16 @@ const server = Bun.serve({
       }
     }
     return new Response('Not Found', { status: 404 });
+  },
+  websocket: {
+    open(ws) {
+      ws.subscribe(BUCHUNGEN_TOPIC);
+      ws.send(JSON.stringify({ type: 'replay', events: ring.snapshot() }));
+    },
+    message() {},
+    close(ws) {
+      ws.unsubscribe(BUCHUNGEN_TOPIC);
+    },
   },
 });
 

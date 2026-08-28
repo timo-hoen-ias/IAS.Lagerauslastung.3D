@@ -14,6 +14,7 @@ import MeasureTool from './MeasureTool';
 import LookTarget from './LookTarget';
 import TargetMarker from './TargetMarker';
 import ArticleMarkers from './ArticleMarkers';
+import BookingFlash from './BookingFlash';
 import CameraReporter from './CameraReporter';
 import Perimeter from './Perimeter';
 import FloorMask from './FloorMask';
@@ -114,6 +115,7 @@ export default function WarehouseScene({
       {mode === 'walk' && <LookTarget racks={racks} />}
       {mode !== 'walk' && <TargetMarker racks={racks} />}
       <ArticleMarkers racks={racks} />
+      <BookingFlash racks={racks} />
       {measure && <MeasureTool />}
       <CameraReporter />
     </>

@@ -102,3 +102,79 @@ export function platzWorld(placed: PlacedRack, t: RackTransform, platz: Lagerpla
     h: box.h * t.scale.y,
   };
 }
+
+// ---- Live-Buchungen → Blitz-Effekt -----------------------------------------
+
+export type PlacedPlatz = { rack: PlacedRack; platz: Lagerplatz };
+
+/** Findet die Regal-Instanz, die einen Lagerplatz (per PlatzId) enthält. */
+export function platzMitId(racks: PlacedRack[], platzId: number): PlacedPlatz | null {
+  for (const r of racks) {
+    const p = gangPlätze(r.ort, r.kind, r.gang).find((x) => x.platzId === platzId);
+    if (p) return { rack: r, platz: p };
+  }
+  return null;
+}
+
+export const FLASH_HERKUNFT_COLOR = '#ff9f43';
+export const FLASH_ZIEL_COLOR = '#2ecc71';
+export const FLASH_DURATION_MS = 1500;
+
+export type FlashDef = {
+  key: string;
+  w: CellWorld;
+  start: number;
+  color: string;
+  label: string;
+};
+
+/** Menge kompakt formatieren (Ganzzahl ohne Nachkommastellen). */
+export function fmtMenge(menge: number): string {
+  return Number.isInteger(menge) ? String(menge) : String(Math.round(menge * 100) / 100);
+}
+
+type FlashBuchung = {
+  id: number;
+  artikelnummer: string;
+  menge: number;
+  herkunftPlatzId: number | null;
+  zielPlatzId: number | null;
+  ts: number;
+};
+
+/** Erzeugt pro Buchung bis zu zwei Blitze: Herkunft (warm, „-Menge") und Ziel (grün, „+Menge"). */
+export function bookingFlashes(
+  racks: PlacedRack[],
+  buchungen: FlashBuchung[],
+  transformOf: (key: string) => RackTransform,
+): FlashDef[] {
+  const out: FlashDef[] = [];
+  for (const b of buchungen) {
+    const menge = fmtMenge(b.menge);
+    if (b.herkunftPlatzId != null) {
+      const hit = platzMitId(racks, b.herkunftPlatzId);
+      if (hit) {
+        out.push({
+          key: `${b.id}-h`,
+          w: platzWorld(hit.rack, transformOf(hit.rack.key), hit.platz),
+          start: b.ts,
+          color: FLASH_HERKUNFT_COLOR,
+          label: `${b.artikelnummer} -${menge}`,
+        });
+      }
+    }
+    if (b.zielPlatzId != null) {
+      const hit = platzMitId(racks, b.zielPlatzId);
+      if (hit) {
+        out.push({
+          key: `${b.id}-z`,
+          w: platzWorld(hit.rack, transformOf(hit.rack.key), hit.platz),
+          start: b.ts,
+          color: FLASH_ZIEL_COLOR,
+          label: `${b.artikelnummer} +${menge}`,
+        });
+      }
+    }
+  }
+  return out;
+}

@@ -30,3 +30,18 @@ export type LagerDaten = {
   mandant: number;
   lagerorte: Lagerort[];
 };
+
+/** Live-Buchung aus der MDE (POST /api/buchung), per WebSocket verteilt. */
+export type BuchungEvent = {
+  mandant: number;
+  artikelnummer: string;
+  menge: number;
+  bewegung: string | null;
+  herkunftPlatzId: number | null;
+  zielPlatzId: number | null;
+  herkunftCarrierId: number | null;
+  zielCarrierId: number | null;
+  typ: number | null;
+  benutzer: string;
+  ts: number;
+};

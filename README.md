@@ -19,6 +19,8 @@ Lagerbestände aus MSSQL und rendert daraus ein begehbares 3D-Lager in React + t
 - **Zwei Kamera-Modi** (`Tab` oder Button):
   - **Orbit** — wie im Level-Editor zoomen/panen.
   - **Ego** — PointerLock + WASD, mit AABB-Kollision gegen alle Regale.
+- **Live-Buchungen:** Meldet die MDE eine Lagerbuchung (`POST /api/buchung`), blitzt der Artikel
+  am Herkunftsplatz (warm) und Zielplatz (grün) kurz auf und blendet aus — in allen Modi.
 
 ## Start
 
@@ -37,13 +39,15 @@ bun run dev            # Server :3001 + Vite :5173 (Proxy /api)
 ```
 src/
 ├─ server/          # Bun.serve + mssql-Pool
-│  ├─ index.ts      # GET /api/lager (2 Queries, gecacht im Pool)
+│  ├─ index.ts      # GET /api/lager, POST /api/buchung, WS /api/buchung/ws
+│  ├─ buchungen.ts  # Buchungs-Event validieren + Ringpuffer (Replay)
 │  ├─ query.ts      # SQL-Abfragen + Gruppierung Ort→Platz→Bestände
 │  └─ query.test.ts
 ├─ shared/types.ts  # gemeinsame Typen (Server + Client)
 └─ app/
-   ├─ scene/        # WarehouseScene, Rack, Cell, WalkControls, layout
+   ├─ scene/        # WarehouseScene, Rack, Cell, WalkControls, layout, BookingFlash
    ├─ ui/           # Inspector (@react-three/uikit), HUD (HTML-Legende)
+   ├─ live.ts       # WebSocket-Client mit Reconnect (Live-Buchungen)
    ├─ colors.ts     # Lagertechnik- & Bestands-Farben
    └─ App.tsx       # Daten-Loading, Modus-Umschaltung
 ```

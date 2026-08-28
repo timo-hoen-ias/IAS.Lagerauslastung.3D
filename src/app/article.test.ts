@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { LagerDaten, Lagerbestand, Lagerort, Lagerplatz } from '../shared/types';
-import { alleArtikel, artikelLagerplätze, filterArtikel, platzIdsMitArtikel, plätzeMitArtikel, platzWorld } from './article';
+import {
+  alleArtikel,
+  artikelLagerplätze,
+  bookingFlashes,
+  filterArtikel,
+  fmtMenge,
+  FLASH_HERKUNFT_COLOR,
+  FLASH_ZIEL_COLOR,
+  platzIdsMitArtikel,
+  plätzeMitArtikel,
+  platzMitId,
+  platzWorld,
+} from './article';
 import type { PlacedRack, RackTransform } from './scene/transform';
 
 const bestand = (artikelnummer: string, bezeichnung1: string, bestand: number): Lagerbestand => ({
@@ -112,22 +124,22 @@ describe('platzIdsMitArtikel', () => {
   });
 });
 
-describe('plätzeMitArtikel', () => {
-  const rack: PlacedRack = {
-    key: 'LAG',
-    ort: data.lagerorte[1]!,
-    kind: 'single',
-    gang: 0,
-    cols: 1,
-    levels: 1,
-    depth: 1,
-    flat: true,
-    cellH: 0.6,
-    position: [0, 0, 0],
-    rotY: 0,
-    size: { w: 0.95, h: 0.6, d: 0.95 },
-  };
+const rack: PlacedRack = {
+  key: 'LAG',
+  ort: data.lagerorte[1]!,
+  kind: 'single',
+  gang: 0,
+  cols: 1,
+  levels: 1,
+  depth: 1,
+  flat: true,
+  cellH: 0.6,
+  position: [0,0,0],
+  rotY: 0,
+  size: { w: 0.95, h: 0.6, d: 0.95 },
+};
 
+describe('plätzeMitArtikel', () => {
   it('filtert die Plätze der Regal-Instanz auf den Artikel', () => {
     const mitArtikel = plätzeMitArtikel(rack, 'C3');
     expect(mitArtikel).toHaveLength(1);
@@ -177,10 +189,78 @@ describe('platzWorld', () => {
     const t: RackTransform = { x: 0, z: 0, rotY: 0, scale: { x: 2, y: 1, z: 2 } };
     const w = platzWorld(rack, t, zelleRack);
     expect(w.x).toBeCloseTo(8, 5);
-    expect(w.y).toBeCloseTo(0.55, 5);
     expect(w.z).toBeCloseTo(20, 5);
+    expect(w.y).toBeCloseTo(0.55, 5);
     expect(w.w).toBeCloseTo(1.9, 5);
     expect(w.d).toBeCloseTo(1.9, 5);
     expect(w.h).toBeCloseTo(0.6, 5);
   });
 });
+
+describe('platzMitId', () => {
+  it('findet die Regal-Instanz zu einer PlatzId', () => {
+    const hit = platzMitId([rack], 10);
+    expect(hit).not.toBeNull();
+    expect(hit!.platz.platzId).toBe(10);
+    expect(hit!.rack.key).toBe('LAG');
+  });
+
+  it('liefert null für unbekannte PlatzId', () => {
+    expect(platzMitId([rack], 999)).toBeNull();
+    expect(platzMitId([], 10)).toBeNull();
+  });
+});
+
+describe('fmtMenge', () => {
+  it('formatiert Ganzzahlen ohne Nachkommastellen', () => {
+    expect(fmtMenge(5)).toBe('5');
+    expect(fmtMenge(5.5)).toBe('5.5');
+    expect(fmtMenge(0.333)).toBe('0.33');
+  });
+});
+
+describe('bookingFlashes', () => {
+  const t: RackTransform = { x: 0, z: 0, rotY: 0, scale: { x: 1, y: 1, z: 1 } };
+
+  it('erzeugt je Buchung zwei Blitze (Herkunft + Ziel)', () => {
+    const flashes = bookingFlashes(
+      [rack],
+      [{ id: 1, artikelnummer: 'A1', menge: 2, herkunftPlatzId: 10, zielPlatzId: 10, ts: 0 }],
+      () => t,
+    );
+    expect(flashes).toHaveLength(2);
+    expect(flashes[0]).toMatchObject({ key: '1-h', color: FLASH_HERKUNFT_COLOR, label: 'A1 -2' });
+    expect(flashes[1]).toMatchObject({ key: '1-z', color: FLASH_ZIEL_COLOR, label: 'A1 +2' });
+  });
+
+  it('überspringt PlatzIds, die in keinem Regal liegen', () => {
+    const flashes = bookingFlashes(
+      [rack],
+      [{ id: 1, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 999, zielPlatzId: 10, ts: 0 }],
+      () => t,
+    );
+    expect(flashes).toHaveLength(1);
+    expect(flashes[0]!.key).toBe('1-z');
+  });
+
+  it('liefert nichts, wenn kein Platz getroffen wird', () => {
+    const flashes = bookingFlashes(
+      [rack],
+      [{ id: 1, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 999, zielPlatzId: 998, ts: 0 }],
+      () => t,
+    );
+    expect(flashes).toEqual([]);
+  });
+
+  it('berechnet die Weltposition der Zelle', () => {
+    const flashes = bookingFlashes(
+      [rack],
+      [{ id: 7, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 10, zielPlatzId: null, ts: 5 }],
+      () => t,
+    );
+    expect(flashes[0]!.w.x).toBe(0);
+    expect(flashes[0]!.w.z).toBe(0);
+    expect(flashes[0]!.start).toBe(5);
+  });
+});
+
