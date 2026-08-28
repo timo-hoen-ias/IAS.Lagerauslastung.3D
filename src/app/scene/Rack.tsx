@@ -1,32 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { Billboard, Text, TransformControls } from '@react-three/drei';
+import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { RACK_GREY } from '../colors';
-import {
-  getTransform,
-  setDragActive,
-  setSelectedRack,
-  setTransform,
-  useDragActive,
-  useSelectedRack,
-  useSelection,
-  useTransformMode,
-} from '../store';
-import { BASE_H, LEVEL_GAP, POST, gangPlätze, rackFrame } from './layout';
+import { setSelectedRack, useDragActive, useSelectedRack, useSelection } from '../store';
+import { gangPlätze } from './layout';
 import { platzÜberlastet } from '../gew';
-import {
-  resizeFactor,
-  resizeHeight,
-  resizeRack,
-  snap45,
-  snappedMove,
-  type PlacedRack,
-  type RackTransform,
-} from './transform';
-import { useGroundPoint, useVerticalPlanePoint } from './ground';
-import Cell from './Cell';
+import type { PlacedRack, RackTransform } from './transform';
+import CellLayer from './CellLayer';
+import RackLabels, { LodGroup } from './RackLabels';
+import { floorFrameBoxes, mergeBoxes, rackParts } from './boxes';
 
 export default function Rack({
   placed,
@@ -60,11 +44,20 @@ export default function Rack({
   const uH = placed.size.h / transform.scale.y;
   const uD = placed.size.d / transform.scale.z;
 
-  const frame = useMemo(() => rackFrame({ w: uW, h: uH, d: uD }), [uW, uH, uD]);
+  const plaetze = useMemo(() => gangPlätze(placed.ort, placed.kind, placed.gang), [placed.ort, placed.kind, placed.gang]);
+  const überlastet = useMemo(() => plaetze.some((p) => platzÜberlastet(p)), [plaetze]);
 
-  const überlastet = useMemo(
-    () => gangPlätze(placed.ort, placed.kind, placed.gang).some((p) => platzÜberlastet(p)),
-    [placed.ort, placed.kind, placed.gang],
+  const parts = useMemo(() => rackParts({ w: uW, h: uH, d: uD }, placed.levels, placed.cellH), [uW, uH, uD, placed.levels, placed.cellH]);
+  const darkGeo = useMemo(() => mergeBoxes(parts.dark), [parts]);
+  const greyGeo = useMemo(() => mergeBoxes(parts.grey), [parts]);
+  const topGeo = useMemo(() => mergeBoxes(parts.top), [parts]);
+  useEffect(
+    () => () => {
+      darkGeo?.dispose();
+      greyGeo?.dispose();
+      topGeo?.dispose();
+    },
+    [darkGeo, greyGeo, topGeo],
   );
 
   const groupHandlers = edit
@@ -88,47 +81,25 @@ export default function Rack({
         }
       : {};
 
-  const posts: [number, number][] = [
-    [-1, -1],
-    [1, -1],
-    [-1, 1],
-    [1, 1],
-  ];
-
   return (
     <group position={placed.position} rotation-y={placed.rotY} userData={{ rackKey: placed.key }} {...groupHandlers}>
       <group scale={[transform.scale.x, transform.scale.y, transform.scale.z]}>
         {!placed.flat && (
           <>
-            <mesh position={[0,0.04,0]} castShadow receiveShadow>
-              <boxGeometry args={[uW + 0.3, 0.08, uD + 0.3]} />
+            <mesh geometry={darkGeo!} castShadow receiveShadow>
               <meshStandardMaterial color="#262c36" roughness={0.9} />
             </mesh>
-
-            {Array.from({ length: placed.levels }).map((_, iy) => (
-              <mesh key={iy} position={[0, BASE_H + iy * (placed.cellH + LEVEL_GAP) - 0.02, 0]} castShadow receiveShadow>
-                <boxGeometry args={[uW + 0.1, 0.04, uD + 0.1]} />
-                <meshStandardMaterial color="#262c36" roughness={0.9} />
-              </mesh>
-            ))}
-
-            {posts.map(([sx, sz], i) => (
-              <mesh key={i} position={[sx * (uW / 2 - POST / 2), frame.post.pos[1], sz * (uD / 2 - POST / 2)]} castShadow>
-                <boxGeometry args={frame.post.size} />
-                <meshStandardMaterial color={color} roughness={0.5} />
-              </mesh>
-            ))}
-
-            <mesh position={[0, frame.top.pos[1], 0]}>
-              <boxGeometry args={frame.top.size} />
+            <mesh geometry={greyGeo!} castShadow receiveShadow>
+              <meshStandardMaterial color={color} roughness={0.5} />
+            </mesh>
+            <mesh geometry={topGeo!} castShadow>
               <meshStandardMaterial color={color} roughness={0.5} transparent opacity={0.45} depthWrite={false} />
             </mesh>
           </>
         )}
 
-        {gangPlätze(placed.ort, placed.kind, placed.gang).map((platz) => (
-          <Cell key={platz.platzId} platz={platz} rack={placed} interactive={interactive} rackKey={placed.key} ort={placed.ort} />
-        ))}
+        <CellLayer placed={placed} plaetze={plaetze} interactive={interactive} rackKey={placed.key} ort={placed.ort} />
+        <RackLabels placed={placed} plaetze={plaetze} />
       </group>
 
       {rackActive && (
@@ -137,36 +108,53 @@ export default function Rack({
         </lineSegments>
       )}
 
-      <Billboard position={[0, placed.size.h + 0.9, 0]}>
-        <Text
-          fontSize={0.55}
-          color="#ffffff"
-          outlineWidth={0.06}
-          outlineColor="#0a0c10"
-          anchorX="center"
-          anchorY="middle"
-          textAlign="center"
-          lineHeight={1.35}
-        >
-          {placed.ort.lagerkennung}
-        </Text>
-      </Billboard>
+      <LodGroup origin={placed.position} hideDist={70} showDist={55}>
+        <Billboard position={[0, placed.size.h + 0.9, 0]}>
+          <Text
+            fontSize={0.55}
+            color="#ffffff"
+            outlineWidth={0.06}
+            outlineColor="#0a0c10"
+            anchorX="center"
+            anchorY="middle"
+            textAlign="center"
+            lineHeight={1.35}
+          >
+            {placed.ort.lagerkennung}
+          </Text>
+        </Billboard>
+
+        <group position={[0, 0, placed.size.d / 2 + 1.2]}>
+          <Text
+            position={[0,0.08,0]}
+            rotation-x={-Math.PI / 2}
+            fontSize={0.35}
+            color="#ffffff"
+            outlineWidth={0.03}
+            outlineColor="#0a0c10"
+            anchorX="center"
+            anchorY="middle"
+          >
+            {fmtDim(placed.size.w)} × {fmtDim(placed.size.d)} × {fmtDim(placed.size.h)} m
+          </Text>
+        </group>
+
+        {überlastet && (
+          <group position={[0, placed.size.h + 2.2, 0]}>
+            <Billboard>
+              <mesh>
+                <cylinderGeometry args={[0.28,0.28,0.24,3]} />
+                <meshBasicMaterial color="#e74c3c" />
+              </mesh>
+              <Text position={[0,0.01,0.01]} fontSize={0.22} color="#ffffff" anchorX="center" anchorY="middle" fontWeight="bold">
+                !
+              </Text>
+            </Billboard>
+          </group>
+        )}
+      </LodGroup>
 
       <FloorFrame w={placed.size.w} d={placed.size.d} boost={dragging} warn={überlastet} />
-
-      {überlastet && (
-        <group position={[0, placed.size.h + 2.2, 0]}>
-          <Billboard>
-            <mesh>
-              <cylinderGeometry args={[0.28, 0.28, 0.24, 3]} />
-              <meshBasicMaterial color="#e74c3c" />
-            </mesh>
-            <Text position={[0, 0.01, 0.01]} fontSize={0.22} color="#ffffff" anchorX="center" anchorY="middle" fontWeight="bold">
-              !
-            </Text>
-          </Billboard>
-        </group>
-      )}
 
       {dragging && (
         <mesh position={[0,0.035,0]} rotation-x={-Math.PI / 2}>
@@ -174,65 +162,12 @@ export default function Rack({
           <meshBasicMaterial color="#11151c" transparent opacity={0.55} />
         </mesh>
       )}
-
-      <group position={[0, 0, placed.size.d / 2 + 1.2]}>
-        <Text
-          position={[0,0.08,0]}
-          rotation-x={-Math.PI / 2}
-          fontSize={0.35}
-          color="#ffffff"
-          outlineWidth={0.03}
-          outlineColor="#0a0c10"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {fmtDim(placed.size.w)} × {fmtDim(placed.size.d)} × {fmtDim(placed.size.h)} m
-        </Text>
-      </group>
-
     </group>
   );
 }
 
 function fmtDim(n: number): string {
   return (Math.round(n * 10) / 10).toFixed(1).replace('.', ',');
-}
-
-const LINE = 0.06;
-const LINE_H = 0.02;
-const FRAME_GAP = 0.25;
-const CORNER_OFF = 0.02;
-const CORNER_LEN = 0.22;
-const CORNER_LINE = 0.04;
-const HALO_EXTRA = 0.12;
-
-function LineGlow({
-  material,
-  halo,
-  position,
-  len,
-  axis,
-  thick = LINE,
-}: {
-  material: THREE.Material;
-  halo: THREE.Material;
-  position: [number, number, number];
-  len: number;
-  axis: 'x' | 'z';
-  thick?: number;
-}) {
-  const core: [number, number, number] = axis === 'x' ? [len, LINE_H, thick] : [thick, LINE_H, len];
-  const soft: [number, number, number] = axis === 'x' ? [len, LINE_H, thick + HALO_EXTRA] : [thick + HALO_EXTRA, LINE_H, len];
-  return (
-    <>
-      <mesh material={halo} position={position}>
-        <boxGeometry args={soft} />
-      </mesh>
-      <mesh material={material} position={position}>
-        <boxGeometry args={core} />
-      </mesh>
-    </>
-  );
 }
 
 function FloorFrame({ w, d, boost = false, warn = false }: { w: number; d: number; boost?: boolean; warn?: boolean }) {
@@ -251,6 +186,15 @@ function FloorFrame({ w, d, boost = false, warn = false }: { w: number; d: numbe
       }),
     [warn],
   );
+  const coreGeo = useMemo(() => mergeBoxes(floorFrameBoxes(w, d).core), [w, d]);
+  const haloGeo = useMemo(() => mergeBoxes(floorFrameBoxes(w, d).halo), [w, d]);
+  useEffect(
+    () => () => {
+      coreGeo?.dispose();
+      haloGeo?.dispose();
+    },
+    [coreGeo, haloGeo],
+  );
   useFrame(({ clock }) => {
     const p = 0.5 + 0.5 * Math.sin(clock.elapsedTime * Math.PI);
     if (boost) {
@@ -265,34 +209,10 @@ function FloorFrame({ w, d, boost = false, warn = false }: { w: number; d: numbe
     }
   });
 
-  const fw = w + FRAME_GAP * 2;
-  const fd = d + FRAME_GAP * 2;
-  const halfW = fw / 2;
-  const halfD = fd / 2;
-  const corners: [number, number][] = [
-    [-1,-1],
-    [1,-1],
-    [-1,1],
-    [1,1],
-  ];
-
   return (
-    <group position={[0,0.04,0]}>
-      <LineGlow material={core} halo={halo} position={[0, 0, -halfD]} len={fw} axis="x" />
-      <LineGlow material={core} halo={halo} position={[0, 0, halfD]} len={fw} axis="x" />
-      <LineGlow material={core} halo={halo} position={[-halfW, 0, 0]} len={fd} axis="z" />
-      <LineGlow material={core} halo={halo} position={[halfW, 0, 0]} len={fd} axis="z" />
-
-      {corners.map(([sx, sz], i) => {
-        const cx = sx * (halfW + CORNER_OFF);
-        const cz = sz * (halfD + CORNER_OFF);
-        return (
-          <group key={i} position={[cx, 0, cz]}>
-            <LineGlow material={core} halo={halo} position={[-sx * CORNER_LEN / 2, 0, 0]} len={CORNER_LEN} axis="x" thick={CORNER_LINE} />
-            <LineGlow material={core} halo={halo} position={[0, 0, -sz * CORNER_LEN / 2]} len={CORNER_LEN} axis="z" thick={CORNER_LINE} />
-          </group>
-        );
-      })}
+    <group position={[0, 0.04, 0]}>
+      {coreGeo && <mesh geometry={coreGeo} material={core} raycast={() => {}} />}
+      {haloGeo && <mesh geometry={haloGeo} material={halo} raycast={() => {}} />}
     </group>
   );
 }

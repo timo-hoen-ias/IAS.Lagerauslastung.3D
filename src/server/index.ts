@@ -1,7 +1,10 @@
 import sql from 'mssql';
 import { LAGER_SQL, PLAETZE_SQL, attachBestaende, groupLagerorte } from './query';
 import { findConnection, listConnections, type DbConnection } from './connections';
+import { perfLagerDaten } from './perf/generate';
 import type { LagerDaten } from '../shared/types';
+
+const PERF_ID = 'perf';
 
 const pools = new Map<string, Promise<sql.ConnectionPool>>();
 
@@ -56,6 +59,7 @@ const server = Bun.serve({
             mandanten: await mandanten(c).catch(() => []),
           })),
         );
+        items.push({ id: PERF_ID, name: 'Perf-Lager (generiert)', mandanten: [1] });
         return Response.json({ dbs: items });
       } catch (err) {
         console.error('[api/dbs]', err);
@@ -64,6 +68,9 @@ const server = Bun.serve({
     }
     if (req.method === 'GET' && url.pathname === '/api/lager') {
       const db = url.searchParams.get('db') ?? 'default';
+      if (db === PERF_ID) {
+        return Response.json(perfLagerDaten(Number(process.env.PERF_ORTE ?? 100), Number(process.env.PERF_SEED ?? 42)));
+      }
       const mandantRaw = url.searchParams.get('mandant');
       const mandant = mandantRaw ? Number(mandantRaw) : undefined;
       const c = findConnection(db);

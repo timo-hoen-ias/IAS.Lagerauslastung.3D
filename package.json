@@ -9,7 +9,8 @@
     "dev:client": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
-    "typecheck": "tsc -b --pretty"
+    "typecheck": "tsc -b --pretty",
+    "perf": "bun scripts/perf.ts"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
