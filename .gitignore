@@ -1,0 +1,11 @@
+# Godot
+.godot/
+*.tmp
+build/
+
+# Megamemory (Wissensgraph)
+.megamemory/
+
+# OS
+.DS_Store
+Thumbs.db

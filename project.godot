@@ -1,0 +1,42 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="IAS Lagerauslastung 3D"
+config/description="3D-Lagerbestands-Viewer: Perf-Lager standardmaessig (keine DB noetig), optional gegen Bun-Server (?db=perf)."
+config/version="0.1.0"
+run/main_scene="res://src/main.tscn"
+config/features=PackedStringArray("4.7")
+config/icon="res://icon.svg"
+
+[autoload]
+
+DataProvider="*res://src/core/data_provider.gd"
+Live="*res://src/core/live.gd"
+Store="*res://src/core/store.gd"
+_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=800
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/sky_3d/plugin.cfg")
+
+[rendering]
+
+anti_aliasing/quality/msaa_2d=1
+anti_aliasing/quality/msaa_3d=1
+environment/defaults/default_clear_color=Color(0.25, 0.45, 0.75, 1)
+anti_aliasing/quality/screen_space_aa=1
+anti_aliasing/quality/use_taa=true
