@@ -101,7 +101,14 @@ export default function WarehouseScene({
       {walls && <Walls racks={racks} height={wallHeight} />}
 
       {racks.map((r) => (
-        <Rack key={r.key} placed={r} transform={getTransform(r.key)} edit={edit} interactive={interactive} />
+        <Rack
+          key={r.key}
+          placed={r}
+          transform={getTransform(r.key)}
+          edit={edit}
+          interactive={interactive}
+          cull={mode === 'walk'}
+        />
       ))}
 
       {edit && <RackControls racks={racks} />}

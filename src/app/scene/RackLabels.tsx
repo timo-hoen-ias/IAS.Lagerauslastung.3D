@@ -1,45 +1,57 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import type * as THREE from 'three';
 import type { Lagerplatz } from '../../shared/types';
 import { cellSegments } from './Cell';
 import type { PlacedRack } from './transform';
 
 export const LABEL_HIDE = 18;
 
-/** Blendet Kinder per Kamera-Distanz aus (verhindert troika-Text-Draw-Calls in der Ferne). */
+/**
+ * Entscheidet mit Hysterese, ob ein Objekt in der Nähe der Kamera liegt (Distanz `d` zum Ziel).
+ * Ist es bereits `near`, bleibt es bis `hideDist` sichtbar; ist es fern, wird es erst ab `showDist`
+ * wieder gezeigt. Verhindert Flackern beim Pendeln um eine Grenze. Pure Funktion (testbar).
+ */
+export function lodNear(near: boolean, d: number, hideDist: number, showDist?: number): boolean {
+  const show = showDist ?? hideDist - 8;
+  if (near && d > hideDist) return false;
+  if (!near && d < show) return true;
+  return near;
+}
+
+/**
+ * Mountet Kinder erst, wenn die Kamera nahe genug ist (Hysterese, Distanz-Messung pro Frame).
+ *
+ * Perf: Im Gegensatz zum bloßen Ausblenden (visible=false) werden entfernte Kinder GAR NICHT
+ * gerendert bzw. gemountet. Troika-<Text> legt pro Instanz Geometrie + Glyph-Atlas (Canvas/Textur) an;
+ * bei tausenden Zellen eines Perf-Lagers (x viele Regale) würde das sonst den JS-Heap füllen und
+ * heftige GC-Drops auslösen. Hierdurch sind nur die wenigen Regale in Reichweite tatsächlich
+ * instanziiert.
+ */
 export function LodGroup({
   origin,
   hideDist,
   showDist,
   children,
+  active = true,
 }: {
   origin: [number, number, number];
   hideDist: number;
   showDist?: number;
   children: ReactNode;
+  active?: boolean;
 }) {
-  const ref = useRef<THREE.Group>(null);
-  const shown = useRef(true);
-  const show = showDist ?? hideDist - 8;
+  const [near, setNear] = useState(false);
   useFrame(({ camera }) => {
-    const g = ref.current;
-    if (!g) return;
     const d = Math.hypot(
       camera.position.x - origin[0],
       camera.position.y - origin[1],
       camera.position.z - origin[2],
     );
-    let v = shown.current;
-    if (v && d > hideDist) v = false;
-    else if (!v && d < show) v = true;
-    if (v !== shown.current) {
-      shown.current = v;
-      g.visible = v;
-    }
+    const v = active ? lodNear(near, d, hideDist, showDist) : true;
+    if (v !== near) setNear(v);
   });
-  return <group ref={ref}>{children}</group>;
+  return <>{near ? children : null}</>;
 }
 
 /** Artikel-Labels aller Zellen eines Regals, nur in der Nähe sichtbar. */

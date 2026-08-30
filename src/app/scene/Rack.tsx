@@ -12,16 +12,23 @@ import CellLayer from './CellLayer';
 import RackLabels, { LodGroup } from './RackLabels';
 import { floorFrameBoxes, mergeBoxes, rackParts } from './boxes';
 
+/** Distanz, ab der ein entferntes Regal (Rahmen + Zellen) im Ego-Modus ausgeblendet wird. */
+const RACK_HIDE = 55;
+/** Distanz, bei der das Regal wieder erscheint (Hysterese gegen Flackern). */
+const RACK_SHOW = 45;
+
 export default function Rack({
   placed,
   transform,
   edit,
   interactive,
+  cull = false,
 }: {
   placed: PlacedRack;
   transform: RackTransform;
   edit: boolean;
   interactive: boolean;
+  cull?: boolean;
 }) {
   const { setSelection, selection } = useSelection();
   const selected = useSelectedRack() === placed.key;
@@ -83,24 +90,26 @@ export default function Rack({
 
   return (
     <group position={placed.position} rotation-y={placed.rotY} userData={{ rackKey: placed.key }} {...groupHandlers}>
-      <group scale={[transform.scale.x, transform.scale.y, transform.scale.z]}>
-        {!placed.flat && (
-          <>
-            <mesh geometry={darkGeo!} castShadow receiveShadow userData={{ rackKey: placed.key }}>
-              <meshStandardMaterial color="#262c36" roughness={0.9} />
-            </mesh>
-            <mesh geometry={greyGeo!} castShadow receiveShadow userData={{ rackKey: placed.key }}>
-              <meshStandardMaterial color={color} roughness={0.5} />
-            </mesh>
-            <mesh geometry={topGeo!} castShadow userData={{ rackKey: placed.key }}>
-              <meshStandardMaterial color={color} roughness={0.5} transparent opacity={0.45} depthWrite={false} />
-            </mesh>
-          </>
-        )}
+      <LodGroup origin={placed.position} hideDist={RACK_HIDE} showDist={RACK_SHOW} active={cull}>
+        <group scale={[transform.scale.x, transform.scale.y, transform.scale.z]}>
+          {!placed.flat && (
+            <>
+              <mesh geometry={darkGeo!} castShadow receiveShadow userData={{ rackKey: placed.key }}>
+                <meshStandardMaterial color="#262c36" roughness={0.9} />
+              </mesh>
+              <mesh geometry={greyGeo!} castShadow receiveShadow userData={{ rackKey: placed.key }}>
+                <meshStandardMaterial color={color} roughness={0.5} />
+              </mesh>
+              <mesh geometry={topGeo!} castShadow userData={{ rackKey: placed.key }}>
+                <meshStandardMaterial color={color} roughness={0.5} transparent opacity={0.45} depthWrite={false} />
+              </mesh>
+            </>
+          )}
 
-        <CellLayer placed={placed} plaetze={plaetze} interactive={interactive} rackKey={placed.key} ort={placed.ort} />
-        <RackLabels placed={placed} plaetze={plaetze} />
-      </group>
+          <CellLayer placed={placed} plaetze={plaetze} interactive={interactive} rackKey={placed.key} ort={placed.ort} />
+          <RackLabels placed={placed} plaetze={plaetze} />
+        </group>
+      </LodGroup>
 
       {rackActive && (
         <lineSegments geometry={rackEdgeGeo} position={[0, placed.size.h / 2, 0]}>
