@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
-import { bookingFlashes, FLASH_DURATION_MS, type FlashDef } from '../article';
+import { bookingFlashes, FLASH_DURATION_MS, platzIndex, type FlashDef } from '../article';
 import { getTransform, useBuchungen } from '../store';
 import type { PlacedRack } from './transform';
 
@@ -10,9 +10,11 @@ import type { PlacedRack } from './transform';
 export default function BookingFlash({ racks }: { racks: PlacedRack[] }) {
   const buchungen = useBuchungen();
 
+  const index = useMemo(() => platzIndex(racks), [racks]);
+
   const defs = useMemo(
-    () => bookingFlashes(racks, buchungen, (key) => getTransform(key)),
-    [racks, buchungen],
+    () => bookingFlashes(index, buchungen, (key) => getTransform(key)),
+    [index, buchungen],
   );
 
   return (

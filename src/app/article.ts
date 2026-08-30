@@ -107,13 +107,26 @@ export function platzWorld(placed: PlacedRack, t: RackTransform, platz: Lagerpla
 
 export type PlacedPlatz = { rack: PlacedRack; platz: Lagerplatz };
 
-/** Findet die Regal-Instanz, die einen Lagerplatz (per PlatzId) enthält. */
-export function platzMitId(racks: PlacedRack[], platzId: number): PlacedPlatz | null {
+/**
+ * Baut einmalig einen platzId→{rack, platz}-Index über alle Regal-Instanzen auf.
+ * Ersetzt die linearen Scans (Racks × Plätze) von platzMitId durch O(1)-Lookups
+ * für Live-Buchungen. Bei invaliden platzIds liefert Map.get() undefined → null.
+ */
+export function platzIndex(racks: PlacedRack[]): Map<number, PlacedPlatz> {
+  const index = new Map<number, PlacedPlatz>();
   for (const r of racks) {
-    const p = gangPlätze(r.ort, r.kind, r.gang).find((x) => x.platzId === platzId);
-    if (p) return { rack: r, platz: p };
+    for (const p of gangPlätze(r.ort, r.kind, r.gang)) {
+      index.set(p.platzId, { rack: r, platz: p });
+    }
   }
-  return null;
+  return index;
+}
+
+export type PlatzIndex = Map<number, PlacedPlatz>;
+
+/** Findet die Regal-Instanz zu einer PlatzId über den Index. */
+export function platzMitId(index: PlatzIndex, platzId: number): PlacedPlatz | null {
+  return index.get(platzId) ?? null;
 }
 
 export const FLASH_HERKUNFT_COLOR = '#ff9f43';
@@ -144,7 +157,7 @@ type FlashBuchung = {
 
 /** Erzeugt pro Buchung bis zu zwei Blitze: Herkunft (warm, „-Menge") und Ziel (grün, „+Menge"). */
 export function bookingFlashes(
-  racks: PlacedRack[],
+  index: PlatzIndex,
   buchungen: FlashBuchung[],
   transformOf: (key: string) => RackTransform,
 ): FlashDef[] {
@@ -152,7 +165,7 @@ export function bookingFlashes(
   for (const b of buchungen) {
     const menge = fmtMenge(b.menge);
     if (b.herkunftPlatzId != null) {
-      const hit = platzMitId(racks, b.herkunftPlatzId);
+      const hit = platzMitId(index, b.herkunftPlatzId);
       if (hit) {
         out.push({
           key: `${b.id}-h`,
@@ -164,7 +177,7 @@ export function bookingFlashes(
       }
     }
     if (b.zielPlatzId != null) {
-      const hit = platzMitId(racks, b.zielPlatzId);
+      const hit = platzMitId(index, b.zielPlatzId);
       if (hit) {
         out.push({
           key: `${b.id}-z`,

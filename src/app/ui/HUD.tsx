@@ -65,6 +65,7 @@ export default function HUD({
   mandant,
   setMandant,
   error,
+  fallback,
   mode,
   setMode,
   speed,
@@ -85,6 +86,7 @@ export default function HUD({
   mandant: number | null;
   setMandant: (v: number | null) => void;
   error: string | null;
+  fallback: boolean;
   mode: Mode;
   setMode: (m: Mode) => void;
   speed: number;
@@ -216,6 +218,14 @@ export default function HUD({
 
       {error && <div className="hud-error">Fehler: {error}</div>}
       {!data && !error && <div className="hud-loading">Lade Bestände…</div>}
+      {fallback && data && (
+        <div className="hud-warning">
+          Keine DB-Verbindung — Perf-Lager geladen
+          <button className="hud-btn" onClick={() => window.location.reload()}>
+            Erneut versuchen
+          </button>
+        </div>
+      )}
 
       <div className="hud-bottom glass">
         <div className="hud-speed">

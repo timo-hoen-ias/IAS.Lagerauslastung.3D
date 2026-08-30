@@ -11,6 +11,11 @@ import type { PlacedRack } from './transform';
 /**
  * Rendert alle Zellen eines Regals als InstancedMesh (1 Draw-Call statt pro Box).
  * Hover/Selektion: Instanz-Farbe + ein einzelnes Drahtgitter um die aktive Zelle.
+ *
+ * Perf: Die Zellen werfen KEINE Schatten (kein castShadow auf den InstancedMeshes).
+ * Bei vielen Regalen (Perf-Lager) würde jeder Bestandsplatz in den Schattenpass
+ * gerastert → hunderte extra Draw-Calls + große Dreieckszahl. Der Regalrahmen
+ * (Rack.tsx) wirft weiter Schatten für die Grundsilhouette.
  */
 export default function CellLayer({
   placed,
@@ -140,13 +145,13 @@ export default function CellLayer({
   return (
     <>
       {filled.length > 0 && (
-        <instancedMesh ref={filledRef} args={[undefined, undefined, filled.length]} castShadow userData={{ rackKey }} {...handlers}>
+        <instancedMesh ref={filledRef} args={[undefined, undefined, filled.length]} userData={{ rackKey }} {...handlers}>
           <boxGeometry />
           <meshStandardMaterial polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} roughness={0.6} metalness={0.1} />
         </instancedMesh>
       )}
       {empty.length > 0 && (
-        <instancedMesh ref={emptyRef} args={[undefined, undefined, empty.length]} castShadow userData={{ rackKey }} {...handlers}>
+        <instancedMesh ref={emptyRef} args={[undefined, undefined, empty.length]} userData={{ rackKey }} {...handlers}>
           <boxGeometry />
           <meshStandardMaterial transparent opacity={0.3} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} roughness={0.6} metalness={0.1} />
         </instancedMesh>

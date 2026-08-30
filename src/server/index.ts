@@ -2,10 +2,13 @@ import sql from 'mssql';
 import { LAGER_SQL, PLAETZE_SQL, attachBestaende, groupLagerorte } from './query';
 import { findConnection, listConnections, type DbConnection } from './connections';
 import { perfLagerDaten } from './perf/generate';
+import { lagerMitPerfFallback } from './fallback';
 import { BUCHUNGEN_TOPIC, BuchungsRing, parseBuchung, publishBuchung } from './buchungen';
 import type { LagerDaten } from '../shared/types';
 
 const PERF_ID = 'perf';
+const perfOrte = () => Number(process.env.PERF_ORTE ?? 100);
+const perfSeed = () => Number(process.env.PERF_SEED ?? 42);
 const ring = new BuchungsRing();
 
 const pools = new Map<string, Promise<sql.ConnectionPool>>();
@@ -87,19 +90,19 @@ const server = Bun.serve({
     }
     if (req.method === 'GET' && url.pathname === '/api/lager') {
       const db = url.searchParams.get('db') ?? 'default';
-      if (db === PERF_ID) {
-        return Response.json(perfLagerDaten(Number(process.env.PERF_ORTE ?? 100), Number(process.env.PERF_SEED ?? 42)));
-      }
       const mandantRaw = url.searchParams.get('mandant');
       const mandant = mandantRaw ? Number(mandantRaw) : undefined;
+      if (db === PERF_ID) {
+        return Response.json(perfLagerDaten(perfOrte(), perfSeed()));
+      }
       const c = findConnection(db);
       if (!c) return Response.json({ error: `Unbekannte Datenbank '${db}'` }, { status: 400 });
-      try {
-        return Response.json(await loadLager(c, mandant));
-      } catch (err) {
-        console.error('[api/lager]', err);
-        return Response.json({ error: String((err as Error).message) }, { status: 500 });
-      }
+      // Keine erreichbare DB → automatisch das Perf-Lager laden (fallback-Flag für den Client).
+      const daten = await lagerMitPerfFallback(
+        () => loadLager(c, mandant),
+        () => perfLagerDaten(perfOrte(), perfSeed()),
+      );
+      return Response.json(daten);
     }
     return new Response('Not Found', { status: 404 });
   },

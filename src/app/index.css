@@ -393,6 +393,21 @@ body,
   font-size: 14px;
 }
 
+.hud-warning {
+  position: absolute;
+  top: 60px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #4a3a10;
+  border: 1px solid #d9a11c;
+  color: #ffd98a;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
 .hud-help {
   position: absolute;
   top: calc(var(--topbar-h) + 8px);

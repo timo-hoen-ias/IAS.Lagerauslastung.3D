@@ -11,6 +11,7 @@ import Crosshair from './ui/Crosshair';
 import Readout from './ui/Readout';
 import Inspector from './ui/Inspector';
 import { startLiveBuchungen } from './live';
+import { lagerLaden } from './lager';
 
 export type Mode = 'orbit' | 'walk' | 'topdown';
 
@@ -24,6 +25,7 @@ export default function App() {
   const [db, setDb] = useState<string>('default');
   const [mandant, setMandant] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fallback, setFallback] = useState(false);
   const [mode, setMode] = useState<Mode>('orbit');
   const [speed, setSpeed] = useState(10);
   const [edit, setEdit] = useState(false);
@@ -42,7 +44,7 @@ export default function App() {
         if (d.error) throw new Error(d.error);
         setDbs(d.dbs ?? []);
       })
-      .catch((e: unknown) => setError(String(e instanceof Error ? e.message : e)));
+      .catch(() => setDbs([])); // kein Backend → ohne DB-Auswahl weiter (Perf-Fallback greift)
   }, []);
 
   useEffect(() => {
@@ -50,12 +52,12 @@ export default function App() {
     if (mandant != null) params.set('mandant', String(mandant));
     setData(null);
     setError(null);
+    setFallback(false);
     setSelectedArticle(null);
-    fetch(`/api/lager?${params}`)
-      .then((r) => r.json())
-      .then((d: LagerDaten & { error?: string }) => {
-        if (d.error) throw new Error(d.error);
+    lagerLaden(`/api/lager?${params}`)
+      .then((d) => {
         setData(d);
+        setFallback(Boolean(d.fallback));
       })
       .catch((e: unknown) => setError(String(e instanceof Error ? e.message : e)));
   }, [db, mandant]);
@@ -127,6 +129,7 @@ export default function App() {
           mandant={mandant}
           setMandant={setMandant}
           error={error}
+          fallback={fallback}
           mode={mode}
           setMode={setMode}
           speed={speed}

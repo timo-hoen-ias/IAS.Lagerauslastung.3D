@@ -10,6 +10,7 @@ import {
   FLASH_ZIEL_COLOR,
   platzIdsMitArtikel,
   plätzeMitArtikel,
+  platzIndex,
   platzMitId,
   platzWorld,
 } from './article';
@@ -197,17 +198,30 @@ describe('platzWorld', () => {
   });
 });
 
+describe('platzIndex', () => {
+  it('baut einen platzId→{rack, platz}-Index über alle Regal-Instanzen', () => {
+    const index = platzIndex([rack]);
+    expect(index.get(10)).toMatchObject({ rack: { key: 'LAG' }, platz: { platzId: 10 } });
+  });
+
+  it('liefert eine leere Map bei leeren Racks', () => {
+    expect(platzIndex([]).size).toBe(0);
+  });
+});
+
 describe('platzMitId', () => {
-  it('findet die Regal-Instanz zu einer PlatzId', () => {
-    const hit = platzMitId([rack], 10);
+  it('findet die Regal-Instanz zu einer PlatzId über den Index', () => {
+    const index = platzIndex([rack]);
+    const hit = platzMitId(index, 10);
     expect(hit).not.toBeNull();
     expect(hit!.platz.platzId).toBe(10);
     expect(hit!.rack.key).toBe('LAG');
   });
 
-  it('liefert null für unbekannte PlatzId', () => {
-    expect(platzMitId([rack], 999)).toBeNull();
-    expect(platzMitId([], 10)).toBeNull();
+  it('liefert null für unbekannte PlatzId oder leeren Index', () => {
+    const index = platzIndex([rack]);
+    expect(platzMitId(index, 999)).toBeNull();
+    expect(platzMitId(platzIndex([]), 10)).toBeNull();
   });
 });
 
@@ -221,10 +235,11 @@ describe('fmtMenge', () => {
 
 describe('bookingFlashes', () => {
   const t: RackTransform = { x: 0, z: 0, rotY: 0, scale: { x: 1, y: 1, z: 1 } };
+  const index = platzIndex([rack]);
 
   it('erzeugt je Buchung zwei Blitze (Herkunft + Ziel)', () => {
     const flashes = bookingFlashes(
-      [rack],
+      index,
       [{ id: 1, artikelnummer: 'A1', menge: 2, herkunftPlatzId: 10, zielPlatzId: 10, ts: 0 }],
       () => t,
     );
@@ -235,7 +250,7 @@ describe('bookingFlashes', () => {
 
   it('überspringt PlatzIds, die in keinem Regal liegen', () => {
     const flashes = bookingFlashes(
-      [rack],
+      index,
       [{ id: 1, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 999, zielPlatzId: 10, ts: 0 }],
       () => t,
     );
@@ -245,7 +260,7 @@ describe('bookingFlashes', () => {
 
   it('liefert nichts, wenn kein Platz getroffen wird', () => {
     const flashes = bookingFlashes(
-      [rack],
+      index,
       [{ id: 1, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 999, zielPlatzId: 998, ts: 0 }],
       () => t,
     );
@@ -254,7 +269,7 @@ describe('bookingFlashes', () => {
 
   it('berechnet die Weltposition der Zelle', () => {
     const flashes = bookingFlashes(
-      [rack],
+      index,
       [{ id: 7, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 10, zielPlatzId: null, ts: 5 }],
       () => t,
     );
