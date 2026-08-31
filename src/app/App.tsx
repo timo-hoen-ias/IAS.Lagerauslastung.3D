@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import type { LagerDaten } from '../shared/types';
-import { SelectionProvider, getTransform, setSelectedArticle, setTransform, useEffectiveRacks, useSelectedRack } from './store';
+import { getTransform, setSelectedArticle, setTransform, useEffectiveRacks, useSelectedRack } from './store';
 import WarehouseScene from './scene/WarehouseScene';
 import { layoutRacks } from './scene/layout';
 import { rotateRack, scaleRack } from './scene/transform';
@@ -117,37 +117,35 @@ export default function App() {
 
   return (
     <div id="wm-root" className="wm-root">
-      <SelectionProvider>
-        <Canvas dpr={[1, 1.5]} shadows camera={{ position: [0,16,34], fov: 60, near: 0.1, far: 400 }}>
-          <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} lighting={lighting} walls={walls} />
-        </Canvas>
-        <HUD
-          data={data}
-          dbs={dbs}
-          db={db}
-          setDb={setDb}
-          mandant={mandant}
-          setMandant={setMandant}
-          error={error}
-          fallback={fallback}
-          mode={mode}
-          setMode={setMode}
-          speed={speed}
-          setSpeed={setSpeed}
-          edit={edit}
-          setEdit={setEdit}
-          measure={measure}
-          setMeasure={setMeasure}
-          lighting={lighting}
-          setLighting={setLighting}
-          walls={walls}
-          setWalls={setWalls}
-        />
-        <Minimap racks={racks} visible={mode === 'walk'} />
-        {mode === 'walk' && <Crosshair />}
-        <Readout mode={mode} />
-        <Inspector data={data} />
-      </SelectionProvider>
+      <Canvas dpr={[1, 1.5]} shadows camera={{ position: [0,16,34], fov: 60, near: 0.1, far: 400 }}>
+        <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} lighting={lighting} walls={walls} />
+      </Canvas>
+      <HUD
+        data={data}
+        dbs={dbs}
+        db={db}
+        setDb={setDb}
+        mandant={mandant}
+        setMandant={setMandant}
+        error={error}
+        fallback={fallback}
+        mode={mode}
+        setMode={setMode}
+        speed={speed}
+        setSpeed={setSpeed}
+        edit={edit}
+        setEdit={setEdit}
+        measure={measure}
+        setMeasure={setMeasure}
+        lighting={lighting}
+        setLighting={setLighting}
+        walls={walls}
+        setWalls={setWalls}
+      />
+      <Minimap racks={racks} visible={mode === 'walk'} />
+      {mode === 'walk' && <Crosshair />}
+      <Readout mode={mode} />
+      <Inspector data={data} />
     </div>
   );
 }

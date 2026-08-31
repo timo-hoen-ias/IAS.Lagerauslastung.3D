@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { RACK_GREY } from '../colors';
-import { setSelectedRack, useDragActive, useSelectedRack, useSelection } from '../store';
+import { setSelection, setSelectedRack, useDragActive, useIsRackOrtSelected, useSelectedRack } from '../store';
 import { gangPlätze } from './layout';
 import { platzÜberlastet } from '../gew';
 import type { PlacedRack, RackTransform } from './transform';
@@ -17,7 +17,7 @@ const RACK_HIDE = 55;
 /** Distanz, bei der das Regal wieder erscheint (Hysterese gegen Flackern). */
 const RACK_SHOW = 45;
 
-export default function Rack({
+function Rack({
   placed,
   transform,
   edit,
@@ -30,13 +30,12 @@ export default function Rack({
   interactive: boolean;
   cull?: boolean;
 }) {
-  const { setSelection, selection } = useSelection();
   const selected = useSelectedRack() === placed.key;
   const [hovered, setHovered] = useState(false);
 
   const color = RACK_GREY;
   const dragActive = useDragActive();
-  const selectedOrt = selection?.ort.lagerkennung === placed.ort.lagerkennung && !selection?.platz;
+  const selectedOrt = useIsRackOrtSelected(placed.ort.lagerkennung);
   const rackActive = hovered || selectedOrt;
   const dragging = edit && dragActive && selected;
   const rackEdgeGeo = useMemo(
@@ -174,6 +173,8 @@ export default function Rack({
     </group>
   );
 }
+
+export default memo(Rack);
 
 function fmtDim(n: number): string {
   return (Math.round(n * 10) / 10).toFixed(1).replace('.', ',');

@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Lagerort, Lagerplatz } from '../../shared/types';
-import { useSelection } from '../store';
+import { setSelection } from '../store';
 import type { PlacedRack } from './transform';
 
 /**
@@ -50,7 +50,6 @@ export default function LookTarget({ racks }: { racks: PlacedRack[] }) {
   const scene = useThree((s) => s.scene);
   const raycaster = useRef(new THREE.Raycaster());
   const ndc = useRef(new THREE.Vector2(0, -0.06));
-  const { setSelection } = useSelection();
   const lastKey = useRef('');
 
   const byKey = useMemo(() => new Map(racks.map((r) => [r.key, r])), [racks]);

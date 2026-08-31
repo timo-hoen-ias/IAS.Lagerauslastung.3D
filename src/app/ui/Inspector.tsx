@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent as ReactKeyb
 import { Search } from 'lucide-react';
 import type { LagerDaten, Lagerort, Lagerplatz } from '../../shared/types';
 import { alleArtikel, artikelLagerplätze, filterArtikel, type ArtikelPlatz } from '../article';
-import { setSelectedArticle, useSelectedArticle, useSelection } from '../store';
+import { setSelectedArticle, setSelection, useSelectedArticle, useSelection } from '../store';
 import { fmtKg, ortGewicht, ortMaxGewicht, platzGewicht, platzMaxGewicht } from '../gew';
 
 const WIDTH_KEY = 'wm-inspector-width';
@@ -13,7 +13,7 @@ function clampWidth(w: number): number {
 }
 
 export default function Inspector({ data }: { data: LagerDaten | null }) {
-  const { selection, setSelection } = useSelection();
+  const selection = useSelection();
   const artikel = useSelectedArticle();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -166,7 +166,6 @@ export default function Inspector({ data }: { data: LagerDaten | null }) {
 }
 
 function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
-  const { setSelection } = useSelection();
   return (
     <div className="inspector-body">
       <div className="inspector-table-header">

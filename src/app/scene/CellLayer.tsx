@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Lagerort, Lagerplatz } from '../../shared/types';
 import { platzIdsMitArtikel } from '../article';
-import { useSelectedArticle, useSelection } from '../store';
+import { setSelection, useSelectedArticle, useSelectedPlatzId } from '../store';
 import { cellSegments, HOVER_COLOR, type CellSeg } from './Cell';
 import { cellLocalPosition, cellSize } from './layout';
 import type { PlacedRack } from './transform';
@@ -17,7 +17,7 @@ import type { PlacedRack } from './transform';
  * gerastert → hunderte extra Draw-Calls + große Dreieckszahl. Der Regalrahmen
  * (Rack.tsx) wirft weiter Schatten für die Grundsilhouette.
  */
-export default function CellLayer({
+function CellLayer({
   placed,
   plaetze,
   interactive,
@@ -30,7 +30,6 @@ export default function CellLayer({
   rackKey: string;
   ort: Lagerort;
 }) {
-  const { setSelection, selection } = useSelection();
   const artikel = useSelectedArticle();
   const { segs } = useMemo(() => cellSegments(plaetze, placed), [plaetze, placed]);
   const filled = useMemo(() => segs.filter((s) => !s.empty), [segs]);
@@ -50,7 +49,7 @@ export default function CellLayer({
     return out;
   }, [artikelPlatzIds, filled]);
 
-  const selectedPlatzId = selection?.ort.lagerkennung === rackKey ? (selection?.platz?.platzId ?? -1) : -1;
+  const selectedPlatzId = useSelectedPlatzId(rackKey);
 
   const matrices = useMemo(() => {
     const m = new THREE.Matrix4();
@@ -166,3 +165,5 @@ export default function CellLayer({
     </>
   );
 }
+
+export default memo(CellLayer);

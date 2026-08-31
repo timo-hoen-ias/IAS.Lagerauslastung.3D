@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import type { BuchungEvent, Lagerort, Lagerplatz } from '../shared/types';
 import {
   applyTransform,
@@ -19,17 +12,42 @@ import type { RackPlacement } from './scene/layout';
 
 export type Selection = { ort: Lagerort; platz: Lagerplatz | null } | null;
 
-const SelectionContext = createContext<{ selection: Selection; setSelection: (s: Selection) => void }>({
-  selection: null,
-  setSelection: () => {},
-});
+let selection: Selection = null;
+const selectionListeners = new Set<() => void>();
 
-export function SelectionProvider({ children }: { children: ReactNode }) {
-  const [selection, setSelection] = useState<Selection>(null);
-  return <SelectionContext.Provider value={{ selection, setSelection }}>{children}</SelectionContext.Provider>;
+export function setSelection(s: Selection): void {
+  selection = s;
+  for (const l of selectionListeners) l();
 }
 
-export const useSelection = () => useContext(SelectionContext);
+function subscribeSelection(cb: () => void): () => void {
+  selectionListeners.add(cb);
+  return () => selectionListeners.delete(cb);
+}
+
+export function useSelection(): Selection {
+  return useSyncExternalStore(subscribeSelection, () => selection, () => selection);
+}
+
+/**
+ * Selector-Hook: true, wenn genau dieses Lager (ohne Platz) ausgewählt ist.
+ * Re-rendert nur das betroffene Regal statt aller Regale der Szene bei jedem
+ * Selektionswechsel (useSyncExternalStore bailt aus, wenn sich der aus der
+ * Selektion abgeleitete Wert für dieses Regal nicht ändert).
+ */
+export function useIsRackOrtSelected(lagerkennung: string): boolean {
+  const getSnapshot = () => selection?.ort.lagerkennung === lagerkennung && !selection?.platz;
+  return useSyncExternalStore(subscribeSelection, getSnapshot, getSnapshot);
+}
+
+/**
+ * Selector-Hook: platzId des selektierten Platzes in diesem Regal, sonst -1.
+ * Wie useIsRackOrtSelected re-rendert das nur das betroffene Regal.
+ */
+export function useSelectedPlatzId(rackKey: string): number {
+  const getSnapshot = () => (selection?.ort.lagerkennung === rackKey ? (selection?.platz?.platzId ?? -1) : -1);
+  return useSyncExternalStore(subscribeSelection, getSnapshot, getSnapshot);
+}
 
 // ---- Spieler (für Minimap) -------------------------------------------------
 

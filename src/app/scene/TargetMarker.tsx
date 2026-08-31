@@ -5,7 +5,7 @@ import { useSelection } from '../store';
 import type { PlacedRack } from './transform';
 
 export default function TargetMarker({ racks }: { racks: PlacedRack[] }) {
-  const { selection } = useSelection();
+  const selection = useSelection();
   const beamMat = useRef<THREE.MeshBasicMaterial>(null);
   const ringRef = useRef<THREE.Mesh>(null);
 
