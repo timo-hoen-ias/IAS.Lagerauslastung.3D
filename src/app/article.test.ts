@@ -240,7 +240,7 @@ describe('bookingFlashes', () => {
   it('erzeugt je Buchung zwei Blitze (Herkunft + Ziel)', () => {
     const flashes = bookingFlashes(
       index,
-      [{ id: 1, artikelnummer: 'A1', menge: 2, herkunftPlatzId: 10, zielPlatzId: 10, ts: 0 }],
+      [{ id: 1, artikelnummer: 'A1', menge: 2, herkunftPlatzId: 10, zielPlatzId: 10, receivedAt: 0 }],
       () => t,
     );
     expect(flashes).toHaveLength(2);
@@ -251,7 +251,7 @@ describe('bookingFlashes', () => {
   it('überspringt PlatzIds, die in keinem Regal liegen', () => {
     const flashes = bookingFlashes(
       index,
-      [{ id: 1, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 999, zielPlatzId: 10, ts: 0 }],
+      [{ id: 1, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 999, zielPlatzId: 10, receivedAt: 0 }],
       () => t,
     );
     expect(flashes).toHaveLength(1);
@@ -261,7 +261,7 @@ describe('bookingFlashes', () => {
   it('liefert nichts, wenn kein Platz getroffen wird', () => {
     const flashes = bookingFlashes(
       index,
-      [{ id: 1, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 999, zielPlatzId: 998, ts: 0 }],
+      [{ id: 1, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 999, zielPlatzId: 998, receivedAt: 0 }],
       () => t,
     );
     expect(flashes).toEqual([]);
@@ -270,12 +270,42 @@ describe('bookingFlashes', () => {
   it('berechnet die Weltposition der Zelle', () => {
     const flashes = bookingFlashes(
       index,
-      [{ id: 7, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 10, zielPlatzId: null, ts: 5 }],
+      [{ id: 7, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 10, zielPlatzId: null, receivedAt: 5 }],
       () => t,
     );
     expect(flashes[0]!.w.x).toBe(0);
     expect(flashes[0]!.w.z).toBe(0);
     expect(flashes[0]!.start).toBe(5);
+  });
+
+  it('verbindet Herkunft und Ziel über ein to (Spline), wenn beide Plätze liegen', () => {
+    const zielRack: PlacedRack = {
+      ...rack,
+      key: 'ZIEL',
+      ort: ort('ZIEL', [platz(20, [bestand('A1', 'Artikel Eins', 1)])]),
+      position: [5, 0, 8],
+    };
+    const flashes = bookingFlashes(
+      platzIndex([rack, zielRack]),
+      [{ id: 2, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 10, zielPlatzId: 20, receivedAt: 0 }],
+      () => t,
+    );
+    expect(flashes).toHaveLength(2);
+    expect(flashes[0]!.key).toBe('2-h');
+    expect(flashes[0]!.to).toBeDefined();
+    expect(flashes[0]!.to!.x).toBe(5);
+    expect(flashes[0]!.to!.z).toBe(8);
+    expect(flashes[1]!.to).toBeUndefined();
+  });
+
+  it('setzt kein to, wenn nur eine Seite der Buchung liegt', () => {
+    const flashes = bookingFlashes(
+      index,
+      [{ id: 3, artikelnummer: 'A1', menge: 1, herkunftPlatzId: 10, zielPlatzId: 999, receivedAt: 0 }],
+      () => t,
+    );
+    expect(flashes).toHaveLength(1);
+    expect(flashes[0]!.to).toBeUndefined();
   });
 });
 

@@ -20,6 +20,9 @@ import Perimeter from './Perimeter';
 import FloorMask from './FloorMask';
 import Walls from './Walls';
 import type { Mode } from '../App';
+import type { HeatmapPoint } from '../heatmap';
+import HeatmapOverlay from '../HeatmapOverlay';
+import ThermalCam from './ThermalCam';
 
 export default function WarehouseScene({
   racks,
@@ -29,6 +32,8 @@ export default function WarehouseScene({
   measure,
   lighting,
   walls,
+  heatmapPoints,
+  flir,
 }: {
   racks: PlacedRack[];
   mode: Mode;
@@ -37,6 +42,8 @@ export default function WarehouseScene({
   measure: boolean;
   lighting: boolean;
   walls: boolean;
+  heatmapPoints?: HeatmapPoint[];
+  flir: boolean;
 }) {
   const dragActive = useDragActive();
   const interactive = (mode === 'orbit' || mode === 'topdown') && !edit && !measure;
@@ -134,6 +141,8 @@ export default function WarehouseScene({
       {mode !== 'walk' && <TargetMarker racks={racks} />}
       <ArticleMarkers racks={racks} />
       <BookingFlash racks={racks} />
+      {heatmapPoints && heatmapPoints.length > 0 && <HeatmapOverlay racks={racks} points={heatmapPoints} />}
+      {flir && <ThermalCam />}
       {measure && <MeasureTool />}
       <CameraReporter />
     </>

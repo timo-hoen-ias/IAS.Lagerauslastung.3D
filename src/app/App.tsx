@@ -12,6 +12,9 @@ import Readout from './ui/Readout';
 import Inspector from './ui/Inspector';
 import { startLiveBuchungen } from './live';
 import { lagerLaden } from './lager';
+import { nextIntervalMs, randomBuchung, SIM_MAX_MS, SIM_MIN_MS } from './sim';
+import type { HeatmapDaten } from './heatmap';
+import HeatmapPanel from './ui/HeatmapPanel';
 
 export type Mode = 'orbit' | 'walk' | 'topdown';
 
@@ -32,6 +35,13 @@ export default function App() {
   const [measure, setMeasure] = useState(false);
   const [lighting, setLighting] = useState(true);
   const [walls, setWalls] = useState(false);
+  const [sim, setSim] = useState(false);
+  const [simMinMs, setSimMinMs] = useState(SIM_MIN_MS);
+  const [simMaxMs, setSimMaxMs] = useState(SIM_MAX_MS);
+  const [heatmapOpen, setHeatmapOpen] = useState(false);
+  const [heatmap, setHeatmap] = useState<{ daten: HeatmapDaten; from: number; to: number } | null>(null);
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [flir, setFlir] = useState(false);
 
   const placements = useMemo(() => (data ? layoutRacks(data.lagerorte) : []), [data]);
   const racks = useEffectiveRacks(placements);
@@ -63,6 +73,40 @@ export default function App() {
   }, [db, mandant]);
 
   useEffect(() => startLiveBuchungen(), []);
+
+  useEffect(() => {
+    if (!sim || !data) return;
+    let timer: number | undefined;
+    let stopped = false;
+    const tick = () => {
+      if (stopped) return;
+      fetch('/api/buchung', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(randomBuchung(data)),
+      }).catch((e: unknown) => console.warn('[sim] Buchung konnte nicht gesendet werden', e));
+      timer = window.setTimeout(tick, nextIntervalMs(simMinMs, simMaxMs));
+    };
+    tick();
+    return () => {
+      stopped = true;
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [sim, data, simMinMs, simMaxMs]);
+
+  const loadHeatmap = (from: number, to: number) => {
+    const params = new URLSearchParams({ from: String(from), to: String(to) });
+    if (mandant != null) params.set('mandant', String(mandant));
+    setHeatmapLoading(true);
+    fetch(`/api/buchungen/heatmap?${params}`)
+      .then((r) => r.json())
+      .then((d: HeatmapDaten | { error?: string }) => {
+        if ('error' in d) throw new Error(d.error);
+        setHeatmap({ daten: d as HeatmapDaten, from, to });
+      })
+      .catch((e: unknown) => console.warn('[heatmap]', e))
+      .finally(() => setHeatmapLoading(false));
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -118,7 +162,7 @@ export default function App() {
   return (
     <div id="wm-root" className="wm-root">
       <Canvas dpr={[1, 1.5]} shadows camera={{ position: [0,16,34], fov: 60, near: 0.1, far: 400 }}>
-        <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} lighting={lighting} walls={walls} />
+        <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} lighting={lighting} walls={walls} heatmapPoints={heatmapOpen ? heatmap?.daten.points : undefined} flir={flir} />
       </Canvas>
       <HUD
         data={data}
@@ -141,7 +185,26 @@ export default function App() {
         setLighting={setLighting}
         walls={walls}
         setWalls={setWalls}
+        sim={sim}
+        setSim={setSim}
+        simMinMs={simMinMs}
+        setSimMinMs={setSimMinMs}
+        simMaxMs={simMaxMs}
+        setSimMaxMs={setSimMaxMs}
+        heatmap={heatmapOpen}
+        setHeatmap={setHeatmapOpen}
+        onFlirToggle={() => setFlir((f) => !f)}
       />
+      {heatmapOpen && (
+        <HeatmapPanel
+          data={data}
+          onBerechnen={loadHeatmap}
+          onClose={() => setHeatmapOpen(false)}
+          loading={heatmapLoading}
+          ergebnis={heatmap?.daten ?? null}
+          range={heatmap ? { from: heatmap.from, to: heatmap.to } : null}
+        />
+      )}
       <Minimap racks={racks} visible={mode === 'walk'} />
       {mode === 'walk' && <Crosshair />}
       <Readout mode={mode} />

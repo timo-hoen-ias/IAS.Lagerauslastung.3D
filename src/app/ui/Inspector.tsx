@@ -154,7 +154,11 @@ export default function Inspector({ data }: { data: LagerDaten | null }) {
           <div className="inspector-subtitle">
             {selection.ort.bezeichnung} · Lagertechnik {selection.ort.lagertechnik}
           </div>
-          {selection.platz ? <PlatzPanel platz={selection.platz} /> : <OrtPanel ort={selection.ort} />}
+          {selection.platz ? (
+            <PlatzPanel platz={selection.platz} onBack={() => setSelection({ ort: selection.ort, platz: null })} />
+          ) : (
+            <OrtPanel ort={selection.ort} />
+          )}
         </>
       ) : (
         <div className="inspector-body">
@@ -196,16 +200,64 @@ function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
   );
 }
 
-function PlatzPanel({ platz }: { platz: Lagerplatz }) {
-  const total = platz.bestaende.reduce((s, b) => s + b.bestand, 0);
+export type PlatzRow = {
+  artikelnummer: string;
+  bezeichnung1: string;
+  matchcode: string;
+  bestand: number;
+  verfuegbarkeit: number;
+};
+
+export function platzRows(platz: Lagerplatz): PlatzRow[] {
+  return [...platz.bestaende]
+    .sort((a, b) => a.artikelnummer.localeCompare(b.artikelnummer, 'de'))
+    .map((b) => ({
+      artikelnummer: b.artikelnummer,
+      bezeichnung1: b.bezeichnung1,
+      matchcode: b.matchcode,
+      bestand: b.bestand,
+      verfuegbarkeit: b.verfuegbarkeit,
+    }));
+}
+
+function fmtMasse(m: Lagerplatz['masse']): string {
+  const cm = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','));
+  return `${cm(m.laenge)} × ${cm(m.breite)} × ${cm(m.hoehe)} cm`;
+}
+
+function PlatzPanel({ platz, onBack }: { platz: Lagerplatz; onBack?: () => void }) {
+  const rows = platzRows(platz);
+  const total = rows.reduce((s, r) => s + r.bestand, 0);
   const gewicht = platzGewicht(platz);
   const max = platzMaxGewicht(platz);
   const überlastet = max > 0 && gewicht > max;
+  const bezeichnung = platz.platzbezeichnung && platz.platzbezeichnung !== platz.kurz ? platz.platzbezeichnung : null;
   return (
     <div className="inspector-body">
       <div className="inspector-row">
         <span className="inspector-platz">Platz {platz.kurz || `#${platz.platzId}`}</span>
         <span className="inspector-total">Σ {fmt(total)}</span>
+      </div>
+      {onBack && (
+        <div className="inspector-row">
+          <button className="hud-btn" onClick={onBack} title="Bestände des gesamten Lagerorts anzeigen">
+            Zur Übersicht
+          </button>
+        </div>
+      )}
+      {bezeichnung && (
+        <div className="inspector-row">
+          <span className="inspector-muted">Bezeichnung</span>
+          <span className="inspector-value">{bezeichnung}</span>
+        </div>
+      )}
+      <div className="inspector-row">
+        <span className="inspector-muted">Ebene</span>
+        <span className="inspector-value">{platz.ebene}</span>
+      </div>
+      <div className="inspector-row">
+        <span className="inspector-muted">Abmessungen</span>
+        <span className="inspector-value">{fmtMasse(platz.masse)}</span>
       </div>
       <div className="inspector-row">
         <span className="inspector-muted">Last</span>
@@ -213,23 +265,31 @@ function PlatzPanel({ platz }: { platz: Lagerplatz }) {
           {fmtKg(gewicht)}{max > 0 ? ` / ${fmtKg(max)}` : ''}
         </span>
       </div>
-      {platz.bestaende.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="inspector-muted">Keine Bestände auf diesem Platz</div>
       ) : (
-        platz.bestaende.map((b) => (
-          <div key={b.artikelnummer} className="inspector-row">
-            <div className="inspector-col">
-              <div className="inspector-artikel">{b.artikelnummer}</div>
-              <div className="inspector-muted">{b.bezeichnung1}</div>
-            </div>
-            <div className="inspector-col" style={{ alignItems: 'flex-end' }}>
-              <span className="inspector-value" style={{ color: bestandColor(b.bestand) }}>
-                {fmt(b.bestand)}
-              </span>
-              {b.gewicht > 0 && <span className="inspector-muted">{fmtKg(b.bestand * b.gewicht)}</span>}
-            </div>
+        <>
+          <div className="inspector-table-header">
+            <span className="inspector-col-artikel">Artikel</span>
+            <span className="inspector-col-bez">Bezeichnung</span>
+            <span className="inspector-col-matchcode">Matchcode</span>
+            <span className="inspector-col-bestand">Verfügbar</span>
+            <span className="inspector-col-bestand">Bestand</span>
           </div>
-        ))
+          <div className="inspector-table">
+            {rows.map((r) => (
+              <div key={r.artikelnummer} className="inspector-table-row">
+                <span className="inspector-col-artikel">{r.artikelnummer}</span>
+                <span className="inspector-col-bez inspector-col-bez-val">{r.bezeichnung1}</span>
+                <span className="inspector-col-matchcode inspector-col-platz-val">{r.matchcode}</span>
+                <span className="inspector-col-bestand">{fmt(r.verfuegbarkeit)}</span>
+                <span className="inspector-col-bestand" style={{ color: bestandColor(r.bestand) }}>
+                  {fmt(r.bestand)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

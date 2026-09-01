@@ -3,3 +3,7 @@ dist/
 .env
 *.tsbuildinfo
 .megamemory/
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

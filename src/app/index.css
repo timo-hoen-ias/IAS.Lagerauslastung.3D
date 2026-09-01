@@ -632,6 +632,14 @@ body,
   white-space: nowrap;
 }
 
+.inspector-col-matchcode {
+  flex: 0 0 84px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inspector-col-bestand {
   flex: 0 0 62px;
   text-align: right;

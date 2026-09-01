@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   ChevronDown,
@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ChevronUp,
   CircleHelp,
+  Flame,
   Lightbulb,
   LightbulbOff,
   Map,
@@ -78,6 +79,15 @@ export default function HUD({
   setLighting,
   walls,
   setWalls,
+  sim,
+  setSim,
+  simMinMs,
+  setSimMinMs,
+  simMaxMs,
+  setSimMaxMs,
+  heatmap,
+  setHeatmap,
+  onFlirToggle,
 }: {
   data: LagerDaten | null;
   dbs: DbInfo[];
@@ -99,6 +109,15 @@ export default function HUD({
   setLighting: (v: boolean) => void;
   walls: boolean;
   setWalls: (v: boolean) => void;
+  sim: boolean;
+  setSim: (v: boolean) => void;
+  simMinMs: number;
+  setSimMinMs: (v: number) => void;
+  simMaxMs: number;
+  setSimMaxMs: (v: number) => void;
+  heatmap: boolean;
+  setHeatmap: (v: boolean) => void;
+  onFlirToggle: () => void;
 }) {
   const measurePoints = useMeasurePoints();
   const selectedRack = useSelectedRack();
@@ -118,6 +137,24 @@ export default function HUD({
   const t = selectedRack ? getTransform(selectedRack) : IDENTITY_TRANSFORM;
   const measDist = measurePoints.length === 2 ? dist2d(measurePoints[0]!, measurePoints[1]!) : null;
 
+  // Easter Egg: dreimal schnell auf „Heatmap“ klicken toggelt die FLIR-Ansicht.
+  // Der Panel-Toggle wird um 500 ms verzögert, damit Mehrfachklicks nicht stören.
+  const heatClicks = useRef(0);
+  const heatTimer = useRef<number | null>(null);
+  const onHeatmapClick = () => {
+    heatClicks.current += 1;
+    if (heatTimer.current != null) window.clearTimeout(heatTimer.current);
+    heatTimer.current = window.setTimeout(() => {
+      const n = heatClicks.current;
+      heatClicks.current = 0;
+      if (n >= 3) {
+        onFlirToggle();
+        return;
+      }
+      setHeatmap(!heatmap);
+    }, 500);
+  };
+
   const baseOrt = data?.lagerorte.find((o) => o.lagerkennung === selectedRack?.split('#')[0]);
   const baseSize = baseOrt ? rackMetrics(baseOrt).size : null;
   const DIM_AXES: { axis: 'x' | 'y' | 'z'; label: string; dim: 'w' | 'h' | 'd' }[] = [
@@ -131,6 +168,38 @@ export default function HUD({
       <div className="hud-top glass">
         <span className="hud-title">Lagerbestands-Viewer</span>
         <div className="hud-top-actions">
+          <select
+            className="wm-input"
+            title="Simulierte Beispiel-Buchungen (Debug)"
+            value={sim ? 'on' : 'off'}
+            onChange={(e) => setSim(e.target.value === 'on')}
+          >
+            <option value="off">Buchungen: Aus</option>
+            <option value="on">Buchungen: Sim</option>
+          </select>
+          <label className="hud-sim-interval" title="Intervall der simulierten Buchungen in Millisekunden">
+            <input
+              type="number"
+              className="wm-input"
+              min={0}
+              step={100}
+              value={simMinMs}
+              onChange={(e) => setSimMinMs(Number(e.target.value) || 0)}
+            />
+            –<input
+              type="number"
+              className="wm-input"
+              min={0}
+              step={100}
+              value={simMaxMs}
+              onChange={(e) => setSimMaxMs(Number(e.target.value) || 0)}
+            />
+            ms
+          </label>
+          <button className={`hud-btn${heatmap ? ' active' : ''}`} onClick={onHeatmapClick} title="Heatmap über einen Zeitraum">
+            <Flame size={14} />
+            Heatmap
+          </button>
           {dbs.length > 0 && (
             <>
               <select
