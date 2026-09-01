@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { deriveEditorPlaetze, ebenenHoehen, rotateReihe, type EditorGang } from './editor';
+import { deriveEditorPlaetze, ebenenHoehen, regalDim3Bereiche, regalHoehe, rotateReihe, type EditorGang } from './editor';
 
 /** Baut ein Regal-Kurzform-Objekt für die Tests. */
 function regal(id: string, ebenen: number, plaetzeProEbene: number) {
-  return { id, ebenen, plaetzeProEbene, breite: 1, hoehe: 1, tiefe: 1 };
+  return { id, ebenen, plaetzeProEbene, breite: 1, tiefe: 1 };
 }
 
 describe('deriveEditorPlaetze', () => {
@@ -89,15 +89,64 @@ describe('rotateReihe', () => {
 });
 
 describe('ebenenHoehen', () => {
-  it('teilt hoehe gleichmäßig auf, wenn keine eigenen Ebenenhöhen gesetzt sind', () => {
-    expect(ebenenHoehen({ ebenen: 4, hoehe: 2, ebenenHoehen: undefined })).toEqual([0.5, 0.5, 0.5, 0.5]);
+  it('füllt mit der Default-Höhe auf, wenn keine eigenen Ebenenhöhen gesetzt sind', () => {
+    expect(ebenenHoehen({ ebenen: 3, ebenenHoehen: undefined })).toEqual([0.6, 0.6, 0.6]);
   });
 
   it('nutzt gesetzte Ebenenhöhen, wenn die Länge zu ebenen passt', () => {
-    expect(ebenenHoehen({ ebenen: 3, hoehe: 3, ebenenHoehen: [1.5, 0.8, 0.7] })).toEqual([1.5, 0.8, 0.7]);
+    expect(ebenenHoehen({ ebenen: 3, ebenenHoehen: [1.5, 0.8, 0.7] })).toEqual([1.5, 0.8, 0.7]);
   });
 
-  it('fällt auf gleichmäßige Aufteilung zurück, wenn die Länge nicht zu ebenen passt (z. B. nach Ändern von ebenen)', () => {
-    expect(ebenenHoehen({ ebenen: 2, hoehe: 4, ebenenHoehen: [1, 1, 1] })).toEqual([2, 2]);
+  it('kappt überzählige Ebenenhöhen, wenn ebenen verringert wurde', () => {
+    expect(ebenenHoehen({ ebenen: 2, ebenenHoehen: [1, 1.2, 1.4] })).toEqual([1, 1.2]);
+  });
+
+  it('füllt fehlende Ebenenhöhen mit dem letzten vorhandenen Wert auf, wenn ebenen erhöht wurde', () => {
+    expect(ebenenHoehen({ ebenen: 4, ebenenHoehen: [1, 1.2] })).toEqual([1, 1.2, 1.2, 1.2]);
+  });
+});
+
+describe('regalHoehe', () => {
+  it('summiert die Ebenenhöhen', () => {
+    expect(regalHoehe({ ebenen: 3, ebenenHoehen: [0.5, 0.6, 0.7] })).toBeCloseTo(1.8, 6);
+  });
+
+  it('nutzt die Default-Höhe, wenn keine Ebenenhöhen gesetzt sind', () => {
+    expect(regalHoehe({ ebenen: 2, ebenenHoehen: undefined })).toBeCloseTo(1.2, 6);
+  });
+});
+
+describe('regalDim3Bereiche', () => {
+  it('liefert für jedes Regal die Dim3-Spannbreite, fortlaufend über die Reihen eines Gangs', () => {
+    const gang: EditorGang = {
+      id: 'g1',
+      nummer: 1,
+      breite: 3,
+      reihen: [
+        { id: 'links', seite: 'links', regale: [regal('a', 3, 4), regal('b', 3, 4)] },
+        { id: 'rechts', seite: 'rechts', regale: [regal('c', 3, 4)] },
+      ],
+    };
+    expect(regalDim3Bereiche(gang)).toEqual([
+      { regalId: 'a', von: 1, bis: 4 },
+      { regalId: 'b', von: 5, bis: 8 },
+      { regalId: 'c', von: 9, bis: 12 },
+    ]);
+  });
+
+  it('deckt sich mit den Dim3-Werten aus deriveEditorPlaetze', () => {
+    const gang: EditorGang = {
+      id: 'g1',
+      nummer: 1,
+      breite: 3,
+      reihen: [{ id: 'r1', seite: 'links', regale: [regal('a', 2, 4), regal('b', 2, 4)] }],
+    };
+    const bereiche = regalDim3Bereiche(gang);
+    const plaetze = deriveEditorPlaetze({ lagerkennung: 'X', gaenge: [gang] });
+    for (const b of bereiche) {
+      const dim3Werte = plaetze.filter((p) => p.regalId === b.regalId).map((p) => p.dim3);
+      expect(Math.min(...dim3Werte)).toBe(b.von);
+      expect(Math.max(...dim3Werte)).toBe(b.bis);
+    }
   });
 });

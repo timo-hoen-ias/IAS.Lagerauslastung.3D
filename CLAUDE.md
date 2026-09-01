@@ -129,6 +129,14 @@ keine eigene Regalreihen-/Gang-Zwischenebene, weil das Sage-Datenmodell sie nich
   ihr gegenseitig exklusiv (Klick auf das eine löscht das andere) — der Inspector zeigt immer
   nur eine der beiden Detailansichten gleichzeitig.
 
+**Regal-Maße:** Breite/Tiefe werden pro Regal erfasst, die Höhe ausschließlich pro Ebene
+(`EditorRegal.ebenenHoehen`, s. `ebenenHoehen()`/`regalHoehe()` in `shared/editor.ts`) — kein
+separates Gesamthöhen-Feld. Damit beim Einrichten im Lager-Editor erkennbar ist, welcher reale
+Sage-Lagerplatz (Dim1;Dim2;Dim3) an welchem Ende eines Regals/einer Reihe liegt (wichtig für
+Drehung/Spiegelung), zeigt `regalDim3Bereiche()` je Regal die Dim3-Spannbreite (erste/letzte
+Spalte) — im Lager-Editor sowohl in der Regal-/Reihen-Liste als auch als Label in der
+3D-Vorschau.
+
 ## Bestands-Anzeige (konfigurierbare Einfärbung)
 
 Die Bestandsfarbe je Platz/Zelle ist **nicht mehr fest verdrahtet**, sondern über

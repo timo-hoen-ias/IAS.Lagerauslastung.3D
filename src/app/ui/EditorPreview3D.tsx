@@ -3,7 +3,7 @@ import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import type { EditorGang, Punkt } from '../../shared/editor';
+import { regalDim3Bereiche, type EditorGang, type Punkt } from '../../shared/editor';
 import { layoutEditorGaenge, polygonCenter, wallSegments, type EditorRegalPlacement } from '../scene/editorLayout';
 import { RACK_GREY, VOID, ACCENT } from '../colors';
 
@@ -268,13 +268,20 @@ export default function EditorPreview3D({
     for (const gang of gaenge) for (const reihe of gang.reihen) m.set(reihe.id, reihe.versatz ?? { x: 0, z: 0 });
     return m;
   }, [gaenge]);
-  /** „1L·2" = Gang 1, Reihe links, 2. Regal — zur Unterscheidung in der 3D-Vorschau, analog zur Nummerierung in der Regal-Liste. */
+  /**
+   * „1L·2 (Dim3 5–8)" = Gang 1, Reihe links, 2. Regal, Sage-Spaltenbereich 5–8 — zur
+   * Unterscheidung in der 3D-Vorschau (analog zur Nummerierung in der Regal-Liste) und um beim
+   * Einrichten zu erkennen, welches Ende welchem Sage-Lagerplatz (Gang;Ebene;Dim3) entspricht.
+   */
   const labelById = useMemo(() => {
     const m = new Map<string, string>();
     for (const gang of gaenge) {
+      const dim3ById = new Map(regalDim3Bereiche(gang).map((b) => [b.regalId, b]));
       for (const reihe of gang.reihen) {
         reihe.regale.forEach((regal, i) => {
-          m.set(regal.id, `${gang.nummer}${reihe.seite === 'links' ? 'L' : 'R'}·${i + 1}`);
+          const bereich = dim3ById.get(regal.id);
+          const dim3 = bereich ? (bereich.von === bereich.bis ? ` (Dim3 ${bereich.von})` : ` (Dim3 ${bereich.von}–${bereich.bis})`) : '';
+          m.set(regal.id, `${gang.nummer}${reihe.seite === 'links' ? 'L' : 'R'}·${i + 1}${dim3}`);
         });
       }
     }

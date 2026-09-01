@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { layoutEditorGaenge, polygonCenter, wallSegments } from './editorLayout';
 import type { EditorGang } from '../../shared/editor';
 
-function regal(id: string, breite: number, hoehe: number, tiefe: number, ebenen = 3) {
-  return { id, ebenen, plaetzeProEbene: 4, breite, hoehe, tiefe };
+// `hoehe` bleibt als Parameter erhalten, damit bestehende Aufrufe unverändert lesbar bleiben
+// (Regalhöhe kommt jetzt ausschließlich aus `ebenenHoehen`, s. shared/editor.ts).
+function regal(id: string, breite: number, _hoehe: number, tiefe: number, ebenen = 3) {
+  return { id, ebenen, plaetzeProEbene: 4, breite, tiefe };
 }
 
 describe('layoutEditorGaenge', () => {
@@ -53,17 +55,20 @@ describe('layoutEditorGaenge', () => {
     expect(b.spiegelZ).toBe(false);
   });
 
-  it('reicht individuelle Ebenenhöhen durch, sonst gleichmäßige Aufteilung', () => {
+  it('reicht individuelle Ebenenhöhen durch, sonst die Default-Höhe je Ebene', () => {
     const gaenge: EditorGang[] = [
       {
         id: 'g1',
         nummer: 1,
         breite: 3,
-        reihen: [{ id: 'r1', seite: 'links', regale: [{ ...regal('a', 2, 3, 1, 3), ebenenHoehen: [1.5, 0.8, 0.7] }] }],
+        reihen: [
+          { id: 'r1', seite: 'links', regale: [{ ...regal('a', 2, 3, 1, 3), ebenenHoehen: [1.5, 0.8, 0.7] }, regal('b', 2, 0, 1, 2)] },
+        ],
       },
     ];
     const placements = layoutEditorGaenge(gaenge);
-    expect(placements[0]!.ebenenHoehen).toEqual([1.5, 0.8, 0.7]);
+    expect(placements.find((p) => p.regalId === 'a')!.ebenenHoehen).toEqual([1.5, 0.8, 0.7]);
+    expect(placements.find((p) => p.regalId === 'b')!.ebenenHoehen).toEqual([0.6, 0.6]);
   });
 
   it('reicht die Gang-Nummer (für die Ebenen-Anzeige im Inspector) an jedes Regal der Placements durch', () => {

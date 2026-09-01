@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, FlipHorizontal, FlipVertical, Plus, RotateCw, Trash2, X } from 'lucide-react';
 import type { EditorGang, EditorLager, EditorPlatz, EditorRegal, EditorRegalreihe, Punkt } from '../../shared/editor';
-import { deriveEditorPlaetze, ebenenHoehen, rotateReihe } from '../../shared/editor';
+import { deriveEditorPlaetze, ebenenHoehen, regalDim3Bereiche, regalHoehe, rotateReihe } from '../../shared/editor';
 import DecimalInput from './DecimalInput';
 import GrundrissEditor from './GrundrissEditor';
 import { RECHTECK_START } from './grundriss';
@@ -14,7 +14,7 @@ function newId(prefix: string): string {
 }
 
 function newRegal(): EditorRegal {
-  return { id: newId('regal'), ebenen: 3, plaetzeProEbene: 4, breite: 1.2, hoehe: 2.2, tiefe: 1.0 };
+  return { id: newId('regal'), ebenen: 3, plaetzeProEbene: 4, breite: 1.2, tiefe: 1.0 };
 }
 function newReihe(seite: 'links' | 'rechts'): EditorRegalreihe {
   return { id: newId('reihe'), seite, regale: [newRegal()] };
@@ -35,6 +35,11 @@ function withRegal(reihe: EditorRegalreihe, regalId: string, fn: (x: EditorRegal
 /** Gang-Nummer = Position in der Liste (Dim1) — nicht separat editierbar. */
 function numbered(gaenge: EditorGang[]): EditorGang[] {
   return gaenge.map((g, i) => ({ ...g, nummer: i + 1 }));
+}
+
+/** Meterangabe auf 2 Nachkommastellen, ohne Fließkomma-Rauschen (z. B. 3 × 0.6 → "1.8" statt "1.7999999..."). */
+function fmtM(n: number): string {
+  return String(Math.round(n * 100) / 100);
 }
 
 const textInputClass =
@@ -227,7 +232,10 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
           </div>
 
           <div className="flex flex-col gap-3">
-            {gangeNummeriert.map((gang) => (
+            {gangeNummeriert.map((gang) => {
+              const dim3Bereiche = regalDim3Bereiche(gang);
+              const dim3ById = new Map(dim3Bereiche.map((b) => [b.regalId, b]));
+              return (
               <div key={gang.id} className="rounded-lg border border-line bg-raised p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <div className="font-mono text-[12.5px] text-ink">
@@ -250,11 +258,23 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  {gang.reihen.map((reihe) => (
+                  {gang.reihen.map((reihe) => {
+                    const reiheDim3 = reihe.regale.map((r) => dim3ById.get(r.id)).filter((b) => b !== undefined);
+                    const reiheVon = reiheDim3.length ? Math.min(...reiheDim3.map((b) => b.von)) : null;
+                    const reiheBis = reiheDim3.length ? Math.max(...reiheDim3.map((b) => b.bis)) : null;
+                    return (
                     <div key={reihe.id} className="rounded-md border border-line-soft bg-void/40 p-2.5">
                       <div className="mb-2 flex items-center justify-between">
                         <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
                           Reihe {reihe.seite}
+                          {reiheVon !== null && (
+                            <span
+                              className="ml-1.5 font-mono normal-case tracking-normal text-ink-faint/70"
+                              title="Erster/letzter Sage-Lagerplatz dieser Reihe (Gang;Ebene;Dim3)"
+                            >
+                              · Dim3 {reiheVon}–{reiheBis}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button
@@ -315,9 +335,19 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                         </div>
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        {reihe.regale.map((regal, i) => (
+                        {reihe.regale.map((regal, i) => {
+                          const bereich = dim3ById.get(regal.id);
+                          return (
                           <div key={regal.id} className="flex items-center gap-1.5 text-[11.5px] text-ink-faint">
                             <span className="w-4 font-mono text-ink-faint">{i + 1}</span>
+                            {bereich && (
+                              <span
+                                className="font-mono text-ink-faint/70"
+                                title="Sage-Lagerplatz-Bereich dieses Regals (Gang;Ebene;Dim3, je Ebene)"
+                              >
+                                {bereich.von === bereich.bis ? `Dim3 ${bereich.von}` : `Dim3 ${bereich.von}–${bereich.bis}`}
+                              </span>
+                            )}
                             <span title="Ebenen">Eb.</span>
                             <input
                               className={`${textInputClass} w-11 text-right`}
@@ -350,7 +380,7 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                                 );
                               }}
                             />
-                            <span className="ml-auto" title="Breite × Höhe × Tiefe (m)">
+                            <span className="ml-auto" title="Breite × Tiefe (m)">
                               <DecimalInput
                                 className={`${textInputClass} w-14 text-right`}
                                 value={regal.breite}
@@ -366,18 +396,6 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                             ×
                             <DecimalInput
                               className={`${textInputClass} w-14 text-right`}
-                              value={regal.hoehe}
-                              onCommit={(v) =>
-                                setGaenge((gs) =>
-                                  withGang(gs, gang.id, (g) =>
-                                    withReihe(g, reihe.id, (r) => withRegal(r, regal.id, (x) => ({ ...x, hoehe: v }))),
-                                  ),
-                                )
-                              }
-                            />
-                            ×
-                            <DecimalInput
-                              className={`${textInputClass} w-14 text-right`}
                               value={regal.tiefe}
                               onCommit={(v) =>
                                 setGaenge((gs) =>
@@ -388,6 +406,9 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                               }
                             />
                             <span className="text-ink-faint">m</span>
+                            <span className="font-mono text-ink-faint/70" title="Gesamthöhe = Summe der Ebenenhöhen">
+                              Höhe {fmtM(regalHoehe(regal))} m
+                            </span>
                             <button
                               className={iconBtnClass}
                               title="Höhe je Ebene einzeln festlegen"
@@ -419,7 +440,8 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                               <Trash2 size={12} />
                             </button>
                           </div>
-                        ))}
+                          );
+                        })}
                         {reihe.regale.map(
                           (regal) =>
                             ebenenOffen.has(regal.id) && (
@@ -452,10 +474,12 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                         )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
-            ))}
+              );
+            })}
             {gangeNummeriert.length === 0 && (
               <div className="rounded-lg border border-dashed border-line px-3 py-6 text-center text-[12.5px] text-ink-faint">
                 Noch keine Gänge — „Gang hinzufügen" klicken.

@@ -1,4 +1,4 @@
-import { ebenenHoehen as regalEbenenHoehen, type EditorGang, type Punkt } from '../../shared/editor';
+import { ebenenHoehen as regalEbenenHoehen, regalHoehe, type EditorGang, type Punkt } from '../../shared/editor';
 
 /** Abstand (m) zwischen zwei aufeinanderfolgenden Gängen. */
 const GANG_ABSTAND = 3;
@@ -73,7 +73,7 @@ export function layoutEditorGaenge(gaenge: EditorGang[], grundriss: Punkt[] = []
             0,
             z + (regal.versatz?.z ?? 0) + reiheVersatz.z,
           ],
-          size: { w: regal.breite, h: regal.hoehe, d: regal.tiefe },
+          size: { w: regal.breite, h: regalHoehe(regal), d: regal.tiefe },
           ebenen: regal.ebenen,
           ebenenHoehen: regalEbenenHoehen(regal),
           rotationY: ((reihe.rotation ?? 0) * Math.PI) / 180,

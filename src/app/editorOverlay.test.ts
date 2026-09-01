@@ -13,7 +13,7 @@ import type { EditorGang } from '../shared/editor';
 import type { Lagerbestand, Lagerort, Lagerplatz } from '../shared/types';
 
 function regal(id: string, ebenen: number, plaetzeProEbene: number) {
-  return { id, ebenen, plaetzeProEbene, breite: 1, hoehe: 1, tiefe: 1 };
+  return { id, ebenen, plaetzeProEbene, breite: 1, tiefe: 1 };
 }
 
 function bestand(artikelnummer: string, bestand: number): Lagerbestand {

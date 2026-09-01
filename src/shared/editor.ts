@@ -9,27 +9,37 @@
  *          "rechts" ohne Reset dazwischen), Reset nur bei einem neuen Gang.
  */
 
+/** Standardhöhe (m) einer neuen bzw. neu hinzukommenden Ebene. */
+export const DEFAULT_EBENE_HOEHE = 0.6;
+
 export type EditorRegal = {
   id: string;
   ebenen: number;
   plaetzeProEbene: number;
   breite: number;
-  hoehe: number;
   tiefe: number;
   /** Manueller Versatz (m) ab der automatischen Gang-Position — per Drag in der 3D-Vorschau gesetzt. */
   versatz?: Punkt;
   /**
-   * Höhe (m) je Ebene, Index 0 = unterste Ebene — überschreibt die gleichmäßige Aufteilung von
-   * `hoehe`/`ebenen` (z. B. höheres Bodenfach für Paletten). Fehlt oder passt die Länge nicht
-   * zu `ebenen`, wird gleichmäßig aufgeteilt (`ebenenHoehen()`).
+   * Höhe (m) je Ebene, Index 0 = unterste Ebene — einzige Quelle für die Regalhöhe (kein
+   * separates Gesamthöhen-Feld mehr, s. `regalHoehe()`). Fehlt oder passt die Länge nicht zu
+   * `ebenen`, wird mit dem letzten vorhandenen Wert bzw. `DEFAULT_EBENE_HOEHE` aufgefüllt/gekappt.
    */
   ebenenHoehen?: number[];
 };
 
-/** Höhe je Ebene: `regal.ebenenHoehen` wenn vollständig gesetzt, sonst `hoehe` gleichmäßig auf `ebenen` verteilt. */
-export function ebenenHoehen(regal: Pick<EditorRegal, 'ebenen' | 'hoehe' | 'ebenenHoehen'>): number[] {
-  if (regal.ebenenHoehen && regal.ebenenHoehen.length === regal.ebenen) return regal.ebenenHoehen;
-  return Array(regal.ebenen).fill(regal.hoehe / Math.max(1, regal.ebenen));
+/** Höhe je Ebene, immer mit Länge `ebenen`: vorhandene Werte bleiben, fehlende werden mit dem letzten Wert (oder Default) aufgefüllt, überzählige gekappt. */
+export function ebenenHoehen(regal: Pick<EditorRegal, 'ebenen' | 'ebenenHoehen'>): number[] {
+  const hoehen = regal.ebenenHoehen ?? [];
+  if (hoehen.length === regal.ebenen) return hoehen;
+  if (hoehen.length > regal.ebenen) return hoehen.slice(0, regal.ebenen);
+  const fill = hoehen[hoehen.length - 1] ?? DEFAULT_EBENE_HOEHE;
+  return [...hoehen, ...Array(regal.ebenen - hoehen.length).fill(fill)];
+}
+
+/** Gesamthöhe (m) eines Regals — Summe der Ebenenhöhen. */
+export function regalHoehe(regal: Pick<EditorRegal, 'ebenen' | 'ebenenHoehen'>): number {
+  return ebenenHoehen(regal).reduce((s, h) => s + h, 0);
 }
 
 export type EditorRegalreihe = {
@@ -81,6 +91,27 @@ export type EditorPlatz = {
   dim3: number;
   code: string;
 };
+
+export type RegalDim3Bereich = { regalId: string; von: number; bis: number };
+
+/**
+ * Dim3-Spannbreite (erste/letzte Spalte) jedes Regals eines Gangs — dieselbe fortlaufende
+ * Zählung wie `deriveEditorPlaetze()` (Reihe "links" dann "rechts", kein Reset dazwischen),
+ * aber ohne die vollen Plätze zu materialisieren. Hilft beim Einrichten im Lager-Editor zu
+ * erkennen, welcher Sage-Lagerplatz (Dim1;Dim2;Dim3) an welchem Ende eines Regals/einer Reihe
+ * liegt, um Drehung/Spiegelung richtig an die reale Ausrichtung anzupassen.
+ */
+export function regalDim3Bereiche(gang: Pick<EditorGang, 'reihen'>): RegalDim3Bereich[] {
+  const out: RegalDim3Bereich[] = [];
+  let spaltenOffset = 0;
+  for (const reihe of gang.reihen) {
+    for (const regal of reihe.regale) {
+      out.push({ regalId: regal.id, von: spaltenOffset + 1, bis: spaltenOffset + regal.plaetzeProEbene });
+      spaltenOffset += regal.plaetzeProEbene;
+    }
+  }
+  return out;
+}
 
 /** Leitet alle Plätze eines Lagers rein aus der Gang/Reihe/Regal-Struktur ab. */
 export function deriveEditorPlaetze(lager: Pick<EditorLager, 'lagerkennung' | 'gaenge'>): EditorPlatz[] {
