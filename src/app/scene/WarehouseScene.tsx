@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import { OrbitControls, GizmoHelper, GizmoViewcube, Sky } from '@react-three/drei';
+import { OrbitControls, GizmoHelper, GizmoViewcube } from '@react-three/drei';
 import * as THREE from 'three';
 import { getTransform, useDragActive } from '../store';
-import { FLOOR } from '../colors';
+import { FLOOR, FOG, VOID } from '../colors';
 import { rackAabb, type PlacedRack } from './transform';
 import Rack from './Rack';
 import RackControls from './RackControls';
@@ -20,6 +20,8 @@ import Perimeter from './Perimeter';
 import FloorMask from './FloorMask';
 import Walls from './Walls';
 import type { Mode } from '../App';
+import type { PositionedEditorOverlay } from '../editorOverlay';
+import EditorLagerOverlayScene from './EditorLagerOverlayScene';
 
 export default function WarehouseScene({
   racks,
@@ -29,6 +31,7 @@ export default function WarehouseScene({
   measure,
   lighting,
   walls,
+  editorOverlays,
 }: {
   racks: PlacedRack[];
   mode: Mode;
@@ -37,6 +40,7 @@ export default function WarehouseScene({
   measure: boolean;
   lighting: boolean;
   walls: boolean;
+  editorOverlays: PositionedEditorOverlay[];
 }) {
   const dragActive = useDragActive();
   const interactive = (mode === 'orbit' || mode === 'topdown') && !edit && !measure;
@@ -68,14 +72,15 @@ export default function WarehouseScene({
 
   return (
     <>
-      <Sky distance={300} sunPosition={[30, 50, 20]} />
-      <fog attach="fog" args={['#c3d6ea', 70, 220]} />
+      <color attach="background" args={[VOID]} />
+      <fog attach="fog" args={[FOG, 30, 160]} />
 
-      <ambientLight intensity={0.75} />
+      <ambientLight intensity={0.4} />
       <directionalLight
-        position={shadow ? [shadow.cx + 30, 50, shadow.cz + 20] : [30, 50, 20]}
+        position={shadow ? [shadow.cx + 20, 40, shadow.cz + 15] : [20, 40, 15]}
         target={lightTarget}
-        intensity={1.1}
+        intensity={0.9}
+        color="#dfe8f2"
         castShadow={lighting}
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -87,12 +92,12 @@ export default function WarehouseScene({
         shadow-camera-far={300}
       />
       <primitive object={lightTarget} position={shadow ? [shadow.cx, 0, shadow.cz] : [0, 0, 0]} />
-      <directionalLight position={[-40, 40, -30]} intensity={0.35} />
-      {lighting && <hemisphereLight args={['#cfe0f0', '#4a4438', 0.35]} />}
+      <directionalLight position={[-40, 30, -30]} intensity={0.25} color="#7fa0c8" />
+      {lighting && <hemisphereLight args={['#3a4552', '#0d0f13', 0.5]} />}
 
       <mesh rotation-x={-Math.PI / 2} receiveShadow raycast={() => {}} position={[0, 0, 0]}>
         <planeGeometry args={[600, 600]} />
-        <meshStandardMaterial color={FLOOR} />
+        <meshStandardMaterial color={FLOOR} roughness={0.95} metalness={0.05} />
       </mesh>
 
       <Grid racks={racks} />
@@ -112,6 +117,10 @@ export default function WarehouseScene({
       ))}
 
       {edit && <RackControls racks={racks} />}
+
+      {editorOverlays.map((p) => (
+        <EditorLagerOverlayScene key={p.overlay.id} overlay={p.overlay} offset={p.offset} />
+      ))}
 
       {mode === 'orbit' && (
         <OrbitControls

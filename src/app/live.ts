@@ -1,5 +1,5 @@
 import type { BuchungEvent } from '../shared/types';
-import { pushBuchung } from './store';
+import { pushBuchung, setWsConnected } from './store';
 
 export type LiveMessage =
   | { type: 'event'; event: BuchungEvent }
@@ -56,6 +56,7 @@ export function startLiveBuchungen(): () => void {
     }
     ws.onopen = () => {
       retry = RETRY_BASE_MS;
+      setWsConnected(true);
     };
     ws.onmessage = (ev) => {
       const msg = parseLiveMessage(String(ev.data));
@@ -71,6 +72,7 @@ export function startLiveBuchungen(): () => void {
     };
     ws.onclose = () => {
       ws = null;
+      setWsConnected(false);
       scheduleRetry();
     };
   };
@@ -79,6 +81,7 @@ export function startLiveBuchungen(): () => void {
 
   return () => {
     closed = true;
+    setWsConnected(false);
     if (timer != null) window.clearTimeout(timer);
     ws?.close();
   };
