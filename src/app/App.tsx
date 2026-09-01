@@ -1,14 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import type { LagerDaten } from '../shared/types';
-import { getTransform, setSelectedArticle, setTransform, useEffectiveRacks, useSelectedRack } from './store';
+import type { EditorLager } from '../shared/editor';
+import {
+  getTransform,
+  setSelectedArticle,
+  setTransform,
+  useEffectiveRacks,
+  useHiddenLagerkennungen,
+  useSelectedRack,
+  useVisibleEditorLagerIds,
+} from './store';
 import WarehouseScene from './scene/WarehouseScene';
 import { layoutRacks } from './scene/layout';
-import { rotateRack, scaleRack } from './scene/transform';
+import { rackAabb, rotateRack, scaleRack } from './scene/transform';
+import { buildEditorOverlay, stageEditorOverlays, type EditorLagerListItem, type PositionedEditorOverlay } from './editorOverlay';
 import HUD from './ui/HUD';
 import Minimap from './ui/Minimap';
 import Crosshair from './ui/Crosshair';
-import Readout from './ui/Readout';
 import Inspector from './ui/Inspector';
 import { startLiveBuchungen } from './live';
 import { lagerLaden } from './lager';
@@ -42,10 +51,36 @@ export default function App() {
   const [heatmap, setHeatmap] = useState<{ daten: HeatmapDaten; from: number; to: number } | null>(null);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   const [flir, setFlir] = useState(false);
+  const [editorLagerList, setEditorLagerList] = useState<EditorLagerListItem[]>([]);
+  const [editorLagerDefs, setEditorLagerDefs] = useState<Map<string, EditorLager>>(new Map());
+  const visibleEditorLagerIds = useVisibleEditorLagerIds();
+  const hiddenLagerkennungen = useHiddenLagerkennungen();
 
-  const placements = useMemo(() => (data ? layoutRacks(data.lagerorte) : []), [data]);
+  const sichtbareLagerorte = useMemo(
+    () => (data ? data.lagerorte.filter((o) => !hiddenLagerkennungen.has(o.lagerkennung)) : []),
+    [data, hiddenLagerkennungen],
+  );
+  const placements = useMemo(() => layoutRacks(sichtbareLagerorte), [sichtbareLagerorte]);
   const racks = useEffectiveRacks(placements);
   const selectedRack = useSelectedRack();
+
+  const editorOverlays = useMemo<PositionedEditorOverlay[]>(() => {
+    if (!data || visibleEditorLagerIds.size === 0) return [];
+    const bekannteIds = new Set(editorLagerList.map((l) => l.id));
+    const overlays = [...visibleEditorLagerIds]
+      .filter((id) => bekannteIds.has(id))
+      .map((id) => editorLagerDefs.get(id))
+      .filter((lager): lager is EditorLager => lager != null)
+      .map((lager) =>
+        buildEditorOverlay(
+          lager,
+          data.lagerorte.find((o) => o.lagerkennung === lager.lagerkennung && lager.mandant === data.mandant),
+        ),
+      );
+    if (overlays.length === 0) return [];
+    const startX = racks.reduce((m, r) => Math.max(m, rackAabb(r).maxX), 0);
+    return stageEditorOverlays(overlays, startX);
+  }, [data, editorLagerList, editorLagerDefs, visibleEditorLagerIds, racks]);
 
   useEffect(() => {
     fetch('/api/dbs')
@@ -56,6 +91,33 @@ export default function App() {
       })
       .catch(() => setDbs([])); // kein Backend → ohne DB-Auswahl weiter (Perf-Fallback greift)
   }, []);
+
+  useEffect(() => {
+    setEditorLagerDefs(new Map()); // Ids sind je DB-Verbindung vergeben, nicht global eindeutig
+    fetch(`/api/editor/lager?db=${db}`)
+      .then((r) => r.json())
+      .then((d: { lager?: EditorLagerListItem[] }) => setEditorLagerList(d.lager ?? []))
+      .catch(() => setEditorLagerList([]));
+  }, [db]);
+
+  useEffect(() => {
+    const missing = [...visibleEditorLagerIds].filter((id) => !editorLagerDefs.has(id));
+    if (missing.length === 0) return;
+    Promise.all(
+      missing.map((id) =>
+        fetch(`/api/editor/lager/${id}?db=${db}`)
+          .then((r) => (r.ok ? (r.json() as Promise<EditorLager>) : null))
+          .then((lager) => [id, lager] as const)
+          .catch(() => [id, null] as const),
+      ),
+    ).then((results) => {
+      setEditorLagerDefs((prev) => {
+        const next = new Map(prev);
+        for (const [id, lager] of results) if (lager) next.set(id, lager);
+        return next;
+      });
+    });
+  }, [visibleEditorLagerIds, editorLagerDefs, db]);
 
   useEffect(() => {
     const params = new URLSearchParams({ db });
@@ -161,8 +223,19 @@ export default function App() {
 
   return (
     <div id="wm-root" className="wm-root">
-      <Canvas dpr={[1, 1.5]} shadows camera={{ position: [0,16,34], fov: 60, near: 0.1, far: 400 }}>
-        <WarehouseScene racks={racks} mode={mode} speed={speed} edit={edit} measure={measure} lighting={lighting} walls={walls} heatmapPoints={heatmapOpen ? heatmap?.daten.points : undefined} flir={flir} />
+      <Canvas dpr={[1,1.5]} shadows camera={{ position: [0,16,34], fov: 60, near: 0.1, far: 400 }}>
+        <WarehouseScene
+          racks={racks}
+          mode={mode}
+          speed={speed}
+          edit={edit}
+          measure={measure}
+          lighting={lighting}
+          walls={walls}
+          heatmapPoints={heatmapOpen ? heatmap?.daten.points : undefined}
+          flir={flir}
+          editorOverlays={editorOverlays}
+        />
       </Canvas>
       <HUD
         data={data}
@@ -207,8 +280,7 @@ export default function App() {
       )}
       <Minimap racks={racks} visible={mode === 'walk'} />
       {mode === 'walk' && <Crosshair />}
-      <Readout mode={mode} />
-      <Inspector data={data} />
+      <Inspector data={data} editorLagerList={editorLagerList} />
     </div>
   );
 }

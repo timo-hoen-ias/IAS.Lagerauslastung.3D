@@ -31,7 +31,13 @@ export function stockColor(total: number, hasStock: boolean): string {
 }
 
 export const RACK_GREY = '#8f8f8f';
-export const FLOOR = '#7a7a7a';
-export const GRID_CELL = '#8a8a8a';
+/** Spiegelt `--color-accent` (index.css) für 3D-Materialien, die keine CSS-Variablen lesen können. */
+export const ACCENT = '#45d8c8';
+export const FLOOR = '#20242b';
+export const GRID_CELL = '#333a44';
 export const GRID_SECTION = '#e8e8e8';
 export const LINE_WHITE = '#f2f2f2';
+
+// Halleninnenraum statt Freiluft-Szene (Lager-Cockpit-Theme, siehe CLAUDE.md).
+export const VOID = '#0a0d12';
+export const FOG = '#0c1016';

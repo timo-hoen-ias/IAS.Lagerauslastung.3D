@@ -13,10 +13,13 @@ function format(n: number): string {
 
 /** Kommazahl-Eingabe mit lokalem Text-Status (freies Tippen inkl. "8." oder "8,5"),
  *  committet bei Blur/Enter, synchronisiert von außen nur wenn nicht fokussiert. */
+const DEFAULT_CLASS =
+  'h-8 w-20 rounded-md border border-line bg-void px-2 text-right font-mono text-[13px] text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent/40';
+
 export default function DecimalInput({
   value,
   onCommit,
-  className = 'wm-input',
+  className = DEFAULT_CLASS,
 }: {
   value: number;
   onCommit: (v: number) => void;

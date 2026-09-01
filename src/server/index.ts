@@ -1,36 +1,18 @@
-import sql from 'mssql';
 import { LAGER_SQL, PLAETZE_SQL, attachBestaende, groupLagerorte } from './query';
 import { findConnection, listConnections, type DbConnection } from './connections';
 import { perfLagerDaten } from './perf/generate';
 import { lagerMitPerfFallback } from './fallback';
 import { BUCHUNGEN_TOPIC, BuchungsRing, parseBuchung, publishBuchung } from './buchungen';
 import { getDb, heatmapBuchungen, insertBuchung } from './buchungenDb';
+import { poolFor } from './db';
+import { createLager, getLager, listLager, matchSage, updateLager } from './editorStore';
 import type { LagerDaten } from '../shared/types';
+import { deriveEditorPlaetze, type EditorLager } from '../shared/editor';
 
 const PERF_ID = 'perf';
 const perfOrte = () => Number(process.env.PERF_ORTE ?? 100);
 const perfSeed = () => Number(process.env.PERF_SEED ?? 42);
 const ring = new BuchungsRing();
-
-const pools = new Map<string, Promise<sql.ConnectionPool>>();
-
-function poolFor(c: DbConnection): Promise<sql.ConnectionPool> {
-  let p = pools.get(c.id);
-  if (!p) {
-    p = new sql.ConnectionPool({
-      server: c.server,
-      database: c.database,
-      user: c.user,
-      password: c.password,
-      options: { encrypt: false, trustServerCertificate: true },
-      connectionTimeout: 10_000,
-      requestTimeout: 30_000,
-      pool: { max: 5, min: 1, idleTimeoutMillis: 60_000 },
-    }).connect();
-    pools.set(c.id, p);
-  }
-  return p;
-}
 
 async function mandanten(c: DbConnection): Promise<number[]> {
   const p = await poolFor(c);
@@ -49,6 +31,61 @@ async function loadLager(c: DbConnection, mandant?: number): Promise<LagerDaten>
   const probe = data.lagerorte.flatMap((o) => o.plaetze).find((x) => x.masse.breite > 0 || x.masse.hoehe > 0 || x.masse.laenge > 0);
   if (probe) console.log(`[lager] ${c.id}/${data.mandant}: Beispiel-Maße (Rohwerte, cm):`, probe.masse);
   return data;
+}
+
+function connectionFromQuery(url: URL): DbConnection | Response {
+  const db = url.searchParams.get('db') ?? '';
+  const c = findConnection(db);
+  if (!c) return Response.json({ error: `Unbekannte Datenbank '${db}'` }, { status: 400 });
+  return c;
+}
+
+async function handleEditorLager(req: Request, url: URL): Promise<Response> {
+  const c = connectionFromQuery(url);
+  if (c instanceof Response) return c;
+  const idMatch = /^\/api\/editor\/lager\/(\d+)$/.exec(url.pathname);
+  try {
+    const pool = await poolFor(c);
+    if (req.method === 'GET' && !idMatch) {
+      return Response.json({ lager: await listLager(pool) });
+    }
+    if (req.method === 'GET' && idMatch) {
+      const lager = await getLager(pool, idMatch[1]!, c.id);
+      if (!lager) return Response.json({ error: 'Lager nicht gefunden' }, { status: 404 });
+      return Response.json(lager);
+    }
+    if (req.method === 'POST' && !idMatch) {
+      const body = (await req.json()) as Omit<EditorLager, 'id' | 'connectionId'>;
+      const id = await createLager(pool, body);
+      return Response.json({ id }, { status: 201 });
+    }
+    if (req.method === 'PUT' && idMatch) {
+      const body = (await req.json()) as Omit<EditorLager, 'id' | 'connectionId'>;
+      await updateLager(pool, idMatch[1]!, body);
+      return new Response(null, { status: 204 });
+    }
+    return new Response('Not Found', { status: 404 });
+  } catch (err) {
+    console.error('[api/editor/lager]', err);
+    return Response.json({ error: String((err as Error).message) }, { status: 500 });
+  }
+}
+
+async function handleEditorVorschau(req: Request, url: URL): Promise<Response> {
+  const c = connectionFromQuery(url);
+  if (c instanceof Response) return c;
+  try {
+    const body = (await req.json()) as Pick<EditorLager, 'lagerkennung' | 'mandant' | 'gaenge'>;
+    const plaetze = deriveEditorPlaetze(body);
+    const pool = await poolFor(c);
+    const gefunden = await matchSage(pool, body.mandant, body.lagerkennung);
+    return Response.json({
+      plaetze: plaetze.map((p) => ({ ...p, gefunden: gefunden.has(`${p.dim1};${p.dim2};${p.dim3}`) })),
+    });
+  } catch (err) {
+    console.error('[api/editor/vorschau]', err);
+    return Response.json({ error: String((err as Error).message) }, { status: 500 });
+  }
 }
 
 const server = Bun.serve({
@@ -115,6 +152,12 @@ const server = Bun.serve({
       const mandantRaw = url.searchParams.get('mandant');
       const mandant = mandantRaw ? Number(mandantRaw) : undefined;
       return Response.json(heatmapBuchungen(getDb(), from, to, mandant));
+    }
+    if (url.pathname === '/api/editor/lager' || /^\/api\/editor\/lager\/\d+$/.test(url.pathname)) {
+      return handleEditorLager(req, url);
+    }
+    if (req.method === 'POST' && url.pathname === '/api/editor/vorschau') {
+      return handleEditorVorschau(req, url);
     }
     return new Response('Not Found', { status: 404 });
   },

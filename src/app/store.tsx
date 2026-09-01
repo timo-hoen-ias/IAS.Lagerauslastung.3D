@@ -299,6 +299,27 @@ export function useDragActive(): boolean {
   );
 }
 
+// ---- Live-Buchungs-Verbindung (WebSocket-Status fürs HUD) -------------------
+
+let wsConnected = false;
+const wsListeners = new Set<() => void>();
+
+export function setWsConnected(v: boolean): void {
+  wsConnected = v;
+  for (const l of wsListeners) l();
+}
+
+export function useWsConnected(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      wsListeners.add(cb);
+      return () => wsListeners.delete(cb);
+    },
+    () => wsConnected,
+    () => wsConnected,
+  );
+}
+
 // ---- Messpunkte (Messwerkzeug) ---------------------------------------------
 
 export type Point2D = { x: number; z: number };
@@ -315,6 +336,51 @@ export function addMeasurePoint(p: Point2D): void {
   notifyMeasure();
 }
 
+// ---- Sichtbarkeit entworfener Läger (Lager-Editor-Overlay im Viewer) -------
+
+const EDITOR_LAGER_VISIBLE_KEY = 'wm-editor-lager-visible';
+
+function loadVisibleEditorLager(): Set<string> {
+  try {
+    const raw = localStorage.getItem(EDITOR_LAGER_VISIBLE_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+let visibleEditorLager: Set<string> = loadVisibleEditorLager();
+const visibleEditorLagerListeners = new Set<() => void>();
+
+function notifyVisibleEditorLager(): void {
+  try {
+    localStorage.setItem(EDITOR_LAGER_VISIBLE_KEY, JSON.stringify([...visibleEditorLager]));
+  } catch {
+    /* Speicher voll/nicht verfügbar – ignorieren */
+  }
+  for (const l of visibleEditorLagerListeners) l();
+}
+
+export function toggleEditorLagerVisible(id: string): void {
+  const next = new Set(visibleEditorLager);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  visibleEditorLager = next;
+  notifyVisibleEditorLager();
+}
+
+export function useVisibleEditorLagerIds(): Set<string> {
+  return useSyncExternalStore(
+    (cb) => {
+      visibleEditorLagerListeners.add(cb);
+      return () => visibleEditorLagerListeners.delete(cb);
+    },
+    () => visibleEditorLager,
+    () => visibleEditorLager,
+  );
+}
+
 export function clearMeasure(): void {
   measurePoints = [];
   notifyMeasure();
@@ -328,5 +394,56 @@ export function useMeasurePoints(): Point2D[] {
     },
     () => measurePoints,
     () => measurePoints,
+  );
+}
+
+// ---- Sichtbarkeit echter Sage-Läger (einzelne Lagerkennungen ausblenden) ---
+
+const HIDDEN_LAGER_KEY = 'wm-hidden-lager';
+
+function loadHiddenLager(): Set<string> {
+  try {
+    const raw = localStorage.getItem(HIDDEN_LAGER_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+let hiddenLager: Set<string> = loadHiddenLager();
+const hiddenLagerListeners = new Set<() => void>();
+
+function notifyHiddenLager(): void {
+  try {
+    localStorage.setItem(HIDDEN_LAGER_KEY, JSON.stringify([...hiddenLager]));
+  } catch {
+    /* Speicher voll/nicht verfügbar – ignorieren */
+  }
+  for (const l of hiddenLagerListeners) l();
+}
+
+export function toggleLagerVisible(lagerkennung: string): void {
+  const next = new Set(hiddenLager);
+  if (next.has(lagerkennung)) next.delete(lagerkennung);
+  else next.add(lagerkennung);
+  hiddenLager = next;
+  notifyHiddenLager();
+}
+
+/** Blendet alle übergebenen Lagerkennungen auf einmal ein oder aus ("Alle"/"Keine" in der Seitenleiste). */
+export function setAllLagerVisible(lagerkennungen: string[], visible: boolean): void {
+  hiddenLager = visible ? new Set() : new Set(lagerkennungen);
+  notifyHiddenLager();
+}
+
+export function useHiddenLagerkennungen(): Set<string> {
+  return useSyncExternalStore(
+    (cb) => {
+      hiddenLagerListeners.add(cb);
+      return () => hiddenLagerListeners.delete(cb);
+    },
+    () => hiddenLager,
+    () => hiddenLager,
   );
 }

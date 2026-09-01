@@ -1,5 +1,35 @@
-* {
-  box-sizing: border-box;
+@import 'tailwindcss';
+
+/*
+ * Lager-Cockpit — Designsystem-Tokens.
+ * Siehe CLAUDE.md ("Design: Lager-Cockpit") für die Herleitung der Farben.
+ */
+@theme {
+  --color-void: #0a0d12;
+  --color-panel: #11161d;
+  --color-raised: #1a212b;
+  --color-raised-2: #212a35;
+  --color-line: #242e3a;
+  --color-line-soft: #181f28;
+  --color-ink: #e9edf2;
+  --color-ink-soft: #a6b0bf;
+  --color-ink-faint: #5f6b7c;
+  --color-accent: #45d8c8;
+
+  --color-stock-empty: #5d6673;
+  --color-stock-low: #27ae60;
+  --color-stock-mid: #f1c40f;
+  --color-stock-high: #e74c3c;
+
+  --color-tech-st: #95a1a6;
+  --color-tech-uf: #2f8fc4;
+  --color-tech-bl: #1cb69a;
+  --color-tech-sf: #f2a53d;
+  --color-tech-hr: #a05fd1;
+
+  /* Systemschriften statt Web-Font-CDN: die Anwendung läuft im Lager-LAN, oft ohne Internetzugriff. */
+  --font-sans: 'Segoe UI', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: Consolas, 'Cascadia Mono', ui-monospace, 'SFMono-Regular', monospace;
 }
 
 html,
@@ -8,9 +38,8 @@ body,
   margin: 0;
   height: 100%;
   overflow: hidden;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  background: #171a21;
-  color: #e8ecf1;
+  background: var(--color-void);
+  color: var(--color-ink);
 }
 
 .wm-root {
@@ -18,8 +47,6 @@ body,
   inset: 0;
   user-select: none;
   -webkit-user-select: none;
-  --topbar-h: 54px;
-  --bottombar-h: 48px;
 }
 
 .wm-root input,
@@ -791,4 +818,60 @@ body,
 
 .article-row:hover {
   background: rgba(126, 200, 255, 0.1);
+}
+
+@layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Lochrand-Trenner im Manifest-Panel (Packschein-Optik). */
+  .perf-divider {
+    position: relative;
+    height: 1px;
+    background-image: repeating-linear-gradient(to right, var(--color-line) 0 6px, transparent 6px 11px);
+  }
+  .perf-divider::before,
+  .perf-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    background: var(--color-void);
+  }
+  .perf-divider::before {
+    left: -7px;
+  }
+  .perf-divider::after {
+    right: -7px;
+  }
+
+  @keyframes wm-radar-ping {
+    0% {
+      opacity: 0.9;
+      transform: translate(-50%, -50%) scale(0.3);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(3.4);
+    }
+  }
+  .animate-radar-ping {
+    animation: wm-radar-ping 1.6s ease-out forwards;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-radar-ping,
+  .animate-spin,
+  .animate-ping,
+  .animate-pulse {
+    animation: none !important;
+  }
 }
