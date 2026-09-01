@@ -145,3 +145,29 @@ export function rackBounds(
   }
   return { minX: minX - margin, maxX: maxX + margin, minZ: minZ - margin, maxZ: maxZ + margin };
 }
+
+export type CameraHomeView = { pos: [number, number, number]; target: [number, number, number] };
+
+/**
+ * Obergrenze für die Startdistanz: Der Szenennebel (`FOG` in `WarehouseScene.tsx`)
+ * blendet ab 160 m vollständig aus. Bei großen Lägern (viele Zeilen durch den
+ * Zeilenumbruch in `layoutRacks`) würde „alles einrahmen" die Kamera weit hinter
+ * die Nebelgrenze schieben → wieder unsichtbar. Start lieber näher dran (guter
+ * Überblick über die ersten Zeilen); der Rest bleibt zum Herannavigieren im Nebel.
+ */
+const MAX_HOME_DIST = 90;
+
+/**
+ * Leitet eine Kamera-Startposition + Blickziel aus der Bounding-Box der geladenen
+ * Regale ab (statt einer festen Distanz), damit auch große Läger beim Laden korrekt
+ * eingerahmt werden. `null` ohne Regale (z. B. während des Ladens).
+ */
+export function frameRacksCamera(racks: PlacedRack[]): CameraHomeView | null {
+  const b = rackBounds(racks, 0);
+  if (!b) return null;
+  const cx = (b.minX + b.maxX) / 2;
+  const cz = (b.minZ + b.maxZ) / 2;
+  const half = Math.max((b.maxX - b.minX) / 2, (b.maxZ - b.minZ) / 2, 5);
+  const dist = Math.min(MAX_HOME_DIST, Math.max(20, half * 1.6));
+  return { pos: [cx, dist * 0.55, cz + dist], target: [cx, 0, cz] };
+}

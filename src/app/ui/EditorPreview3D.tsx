@@ -97,6 +97,7 @@ function RegalBox({
   onMove: (regalId: string, versatz: Punkt) => void;
   setOrbitEnabled: (enabled: boolean) => void;
 }) {
+  const { rotationY } = placement;
   const { position, size, ebenen } = placement;
   const basePosition = { x: position[0] - bisherigerVersatz.x, z: position[2] - bisherigerVersatz.z };
   const { gl } = useThree();
@@ -142,7 +143,9 @@ function RegalBox({
       onPointerOver={() => (gl.domElement.style.cursor = 'grab')}
       onPointerOut={() => (gl.domElement.style.cursor = 'auto')}
     >
-      <RegalMesh size={size} ebenen={ebenen} color={dragging ? ACCENT : RACK_GREY} />
+      <group rotation-y={rotationY}>
+        <RegalMesh size={size} ebenen={ebenen} color={dragging ? ACCENT : RACK_GREY} />
+      </group>
       <RegalLabel size={size} label={label} />
     </group>
   );
@@ -211,7 +214,9 @@ function ReiheGroup({
     >
       {placements.map((p) => (
         <group key={p.regalId} position={[p.position[0] - bisherigerVersatz.x, 0, p.position[2] - bisherigerVersatz.z]}>
-          <RegalMesh size={p.size} ebenen={p.ebenen} color={dragging ? ACCENT : RACK_GREY} />
+          <group rotation-y={p.rotationY}>
+            <RegalMesh size={p.size} ebenen={p.ebenen} color={dragging ? ACCENT : RACK_GREY} />
+          </group>
           <RegalLabel size={p.size} label={labelById.get(p.regalId) ?? ''} />
         </group>
       ))}

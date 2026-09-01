@@ -1,21 +1,37 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Search, X } from 'lucide-react';
 import type { LagerDaten, Lagerort, Lagerplatz } from '../../shared/types';
-import { alleArtikel, artikelLagerplätze, filterArtikel, type ArtikelPlatz } from '../article';
+import { alleArtikel, artikelLagerplätze, filterArtikel, groupRowsByArtikel, rowsFromPlaetze, type ArtikelGroupRow, type ArtikelPlatz, type OrtRow } from '../article';
 import {
   setAllLagerVisible,
+  setEditorSelection,
   setSelectedArticle,
   setSelection,
   toggleEditorLagerVisible,
   toggleLagerVisible,
+  useEditorSelection,
   useHiddenLagerkennungen,
   useSelectedArticle,
   useSelection,
   useVisibleEditorLagerIds,
+  type EditorSelection,
+  type Selection,
 } from '../store';
-import { fmtKg, ortGewicht, ortMaxGewicht, platzGewicht, platzMaxGewicht } from '../gew';
+import { fmtKg, ortGewicht, ortMaxGewicht, plaetzeGewicht, plaetzeMaxGewicht, platzGewicht, platzMaxGewicht } from '../gew';
 import { stockColor } from '../colors';
-import type { EditorLagerListItem } from '../editorOverlay';
+import {
+  editorCounts,
+  editorGangNummer,
+  editorLevelRows,
+  editorPlaetze,
+  editorRegalIndex,
+  editorReiheSeite,
+  type EditorLagerListItem,
+  type EditorLevel,
+  type EditorZelleOverlay,
+} from '../editorOverlay';
+import { gangPlätze } from '../scene/layout';
+import type { PlacedRack } from '../scene/transform';
 
 const WIDTH_KEY = 'wm-inspector-width';
 const WIDTH_MIN = 260;
@@ -31,6 +47,7 @@ function clampWidth(w: number): number {
 
 export default function Inspector({ data, editorLagerList }: { data: LagerDaten | null; editorLagerList: EditorLagerListItem[] }) {
   const selection = useSelection();
+  const editorSelection = useEditorSelection();
   const artikel = useSelectedArticle();
   const visibleEditorLagerIds = useVisibleEditorLagerIds();
   const hiddenLagerkennungen = useHiddenLagerkennungen();
@@ -178,19 +195,34 @@ export default function Inspector({ data, editorLagerList }: { data: LagerDaten 
           <div className="perf-divider" />
           <ArticlePanel plätze={plätze} />
         </>
+      ) : editorSelection ? (
+        <EditorSelectionView sel={editorSelection} />
       ) : selection ? (
         <>
           <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[16px] font-semibold tracking-tight">{selection.ort.lagerkennung}</span>
+            <span className="font-mono text-[16px] font-semibold tracking-tight">
+              {selection.platz
+                ? selection.platz.kurz || `#${selection.platz.platzId}`
+                : selection.rack
+                  ? `Regal ${selection.rack.gang + 1}`
+                  : selection.ort.lagerkennung}
+            </span>
             <button className={CLOSE_BTN} onClick={() => setSelection(null)} title="Schließen">
               <X size={14} />
             </button>
           </div>
+          <Breadcrumb selection={selection} />
           <div className={MUTED}>
             {selection.ort.bezeichnung} · Lagertechnik {selection.ort.lagertechnik}
           </div>
           <div className="perf-divider" />
-          {selection.platz ? <PlatzPanel platz={selection.platz} /> : <OrtPanel ort={selection.ort} />}
+          {selection.platz ? (
+            <PlatzPanel platz={selection.platz} />
+          ) : selection.rack ? (
+            <RackPanel ort={selection.ort} rack={selection.rack} />
+          ) : (
+            <OrtPanel ort={selection.ort} />
+          )}
         </>
       ) : (
         <div className={MUTED}>Artikelnummer suchen oder ein Lager anklicken.</div>
@@ -272,6 +304,189 @@ function EditorLagerListe({ liste, sichtbar }: { liste: EditorLagerListItem[]; s
   );
 }
 
+/** Navigations-Pfad Lager › Regal › Platz über der Detailansicht (klickbar außer der aktuellen Ebene). */
+function Breadcrumb({ selection }: { selection: NonNullable<Selection> }) {
+  const { ort, rack, platz } = selection;
+  const crumbs: { label: string; onClick?: () => void }[] = [
+    { label: ort.lagerkennung, onClick: rack || platz ? () => setSelection({ ort, platz: null, rack: null }) : undefined },
+  ];
+  if (rack) crumbs.push({ label: `Regal ${rack.gang + 1}`, onClick: platz ? () => setSelection({ ort, platz: null, rack }) : undefined });
+  if (platz) crumbs.push({ label: platz.kurz || `#${platz.platzId}` });
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 text-[11px] text-ink-faint">
+      {crumbs.map((c, i) => (
+        <span key={i} className="flex items-center gap-1">
+          {i > 0 && <span>›</span>}
+          {c.onClick ? (
+            <button className="hover:text-accent" onClick={c.onClick}>
+              {c.label}
+            </button>
+          ) : (
+            <span className="text-ink">{c.label}</span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ---- Editor-Lager: Ebenen-Navigation (Platz → Regal → Regalreihe → Gang → Lager) --------
+
+/** Menschliche Labels je Ebene, aus den Placement-Daten des Overlays abgeleitet (kein separates Nummerierungsfeld nötig). */
+function editorLabels(sel: NonNullable<EditorSelection>) {
+  return {
+    lager: sel.overlay.name || sel.overlay.lagerkennung,
+    gang: `Gang ${editorGangNummer(sel.overlay, sel.gangId) ?? '?'}`,
+    reihe: `Reihe ${editorReiheSeite(sel.overlay, sel.reiheId) === 'rechts' ? 'rechts' : 'links'}`,
+    regal: `Regal ${editorRegalIndex(sel.overlay, sel.reiheId, sel.regalId) ?? '?'}`,
+    platz: sel.zelle ? sel.zelle.platz?.kurz || `Ebene ${sel.zelle.ebene} · Platz ${sel.zelle.spalte}` : '',
+  };
+}
+
+const EDITOR_LEVEL_DEPTH: Record<EditorLevel, number> = { lager: 0, gang: 1, reihe: 2, regal: 3, platz: 4 };
+
+/** Navigations-Pfad Lager › Gang › Reihe › Regal › Platz, bis zur aktuellen Tiefe (tiefere Ebenen wie bei der Sage-Auswahl nicht vorgreifend angezeigt). */
+function EditorBreadcrumb({ sel }: { sel: NonNullable<EditorSelection> }) {
+  const labels = editorLabels(sel);
+  const go = (level: EditorLevel) => () => setEditorSelection({ ...sel, level, zelle: level === 'platz' ? sel.zelle : null });
+  const alleEbenen: { label: string; level: EditorLevel }[] = [
+    { label: labels.lager, level: 'lager' },
+    { label: labels.gang, level: 'gang' },
+    { label: labels.reihe, level: 'reihe' },
+    { label: labels.regal, level: 'regal' },
+    { label: labels.platz, level: 'platz' },
+  ];
+  const tiefe = EDITOR_LEVEL_DEPTH[sel.level];
+  const crumbs = alleEbenen.filter((c) => EDITOR_LEVEL_DEPTH[c.level] <= tiefe);
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 text-[11px] text-ink-faint">
+      {crumbs.map((c) => (
+        <span key={c.level} className="flex items-center gap-1">
+          {c.level !== 'lager' && <span>›</span>}
+          {c.level === sel.level ? (
+            <span className="text-ink">{c.label}</span>
+          ) : (
+            <button className="hover:text-accent" onClick={go(c.level)}>
+              {c.label}
+            </button>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function toggleBtnClass(active: boolean): string {
+  return `flex-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+    active ? 'border-accent/40 bg-accent/15 text-accent' : 'border-line text-ink-faint hover:bg-raised'
+  }`;
+}
+
+function EditorLeerePlatzPanel({ zelle }: { zelle: EditorZelleOverlay }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+      <div className={MUTED}>
+        Ebene {zelle.ebene} · Spalte {zelle.spalte}
+      </div>
+      <div className={MUTED}>Kein Sage-Bestand für diesen Platz gefunden — nur Layout-Kontrolle.</div>
+    </div>
+  );
+}
+
+function ArtikelTabelle({ rows }: { rows: ArtikelGroupRow[] }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className={TABLE_HEADER}>
+        <span className="w-16 shrink-0">Artikel</span>
+        <span className="min-w-0 flex-1">Bezeichnung</span>
+        <span className="w-14 shrink-0 text-right">Plätze</span>
+        <span className="w-16 shrink-0 text-right">Bestand</span>
+      </div>
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+        {rows.length === 0 && <div className={`${MUTED} py-2`}>Keine Bestände in dieser Ebene.</div>}
+        {rows.map((r) => (
+          <div key={r.artikel} className={TABLE_ROW}>
+            <span className="w-16 shrink-0 font-mono">{r.artikel}</span>
+            <span className="min-w-0 flex-1 truncate text-ink-soft">{r.bezeichnung}</span>
+            <span className="w-14 shrink-0 text-right font-mono text-ink-faint">{r.plaetze}</span>
+            <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(r.bestand, true) }}>
+              {fmt(r.bestand)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Aggregierte Ansicht einer Ebene (Regal/Reihe/Gang/Lager) — Umschalter zwischen Je-Platz- und Je-Artikel-Gruppierung. */
+function EditorAggregatePanel({ sel, level }: { sel: NonNullable<EditorSelection>; level: Exclude<EditorLevel, 'platz'> }) {
+  const [gruppierung, setGruppierung] = useState<'platz' | 'artikel'>('platz');
+  const ids = { gangId: sel.gangId, reiheId: sel.reiheId, regalId: sel.regalId };
+  const rows = useMemo(() => editorLevelRows(sel.overlay, level, ids), [sel.overlay, level, ids.gangId, ids.reiheId, ids.regalId]);
+  const { plaetzeCount, belegt } = useMemo(() => editorCounts(sel.overlay, level, ids), [sel.overlay, level, ids.gangId, ids.reiheId, ids.regalId]);
+  const plaetze = useMemo(() => editorPlaetze(sel.overlay, level, ids), [sel.overlay, level, ids.gangId, ids.reiheId, ids.regalId]);
+  const gesamt = rows.reduce((s, r) => s + r.bestand, 0);
+  const gruppiert = useMemo(() => groupRowsByArtikel(rows), [rows]);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+      <BestandsSummary plaetzeCount={plaetzeCount} belegt={belegt} gesamt={gesamt} gewicht={plaetzeGewicht(plaetze)} max={plaetzeMaxGewicht(plaetze)} />
+      <div className="flex shrink-0 gap-1.5">
+        <button className={toggleBtnClass(gruppierung === 'platz')} onClick={() => setGruppierung('platz')}>
+          Je Platz
+        </button>
+        <button className={toggleBtnClass(gruppierung === 'artikel')} onClick={() => setGruppierung('artikel')}>
+          Je Artikel
+        </button>
+      </div>
+      {gruppierung === 'platz' ? (
+        <BestandsTabelle rows={rows} emptyText="Keine Bestände in dieser Ebene." />
+      ) : (
+        <ArtikelTabelle rows={gruppiert} />
+      )}
+    </div>
+  );
+}
+
+/** Detailansicht für die Editor-Lager-Auswahl (Platz/Regal/Reihe/Gang/Lager), Pendant zur Sage-Selection unten. */
+function EditorSelectionView({ sel }: { sel: NonNullable<EditorSelection> }) {
+  const { level, zelle } = sel;
+  const labels = editorLabels(sel);
+  const title = level === 'platz' ? labels.platz : level === 'regal' ? labels.regal : level === 'reihe' ? labels.reihe : level === 'gang' ? labels.gang : labels.lager;
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-[16px] font-semibold tracking-tight">{title}</span>
+        <button className={CLOSE_BTN} onClick={() => setEditorSelection(null)} title="Schließen">
+          <X size={14} />
+        </button>
+      </div>
+      <EditorBreadcrumb sel={sel} />
+      <div className={MUTED}>
+        {sel.overlay.name} · {sel.overlay.lagerkennung} · entworfenes Lager
+      </div>
+      <div className="perf-divider" />
+      {level === 'platz' ? (
+        zelle ? (
+          zelle.platz ? (
+            <PlatzPanel platz={zelle.platz} />
+          ) : (
+            <EditorLeerePlatzPanel zelle={zelle} />
+          )
+        ) : (
+          <div className={MUTED}>Kein Platz ausgewählt.</div>
+        )
+      ) : (
+        <EditorAggregatePanel sel={sel} level={level} />
+      )}
+    </>
+  );
+}
+
 function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -287,7 +502,7 @@ function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
           <button
             key={`${p.ort.lagerkennung}-${p.platz.platzId}`}
             className={`${TABLE_ROW} hover:bg-raised/60`}
-            onClick={() => setSelection({ ort: p.ort, platz: p.platz })}
+            onClick={() => setSelection({ ort: p.ort, platz: p.platz, rack: null })}
             title="In der 3D-Welt hervorheben"
           >
             <span className="w-14 shrink-0 font-mono text-accent">{p.ort.lagerkennung}</span>
@@ -350,32 +565,34 @@ function PlatzPanel({ platz }: { platz: Lagerplatz }) {
   );
 }
 
-export type OrtRow = { platzId: number; platz: string; artikel: string; bezeichnung: string; bestand: number };
-
 export function ortRows(ort: Lagerort): OrtRow[] {
-  const rows: OrtRow[] = [];
-  for (const p of ort.plaetze) {
-    if (p.bestaende.length === 0) continue;
-    for (const b of p.bestaende) {
-      rows.push({ platzId: p.platzId, platz: p.kurz || `#${p.platzId}`, artikel: b.artikelnummer, bezeichnung: b.bezeichnung1, bestand: b.bestand });
-    }
-  }
-  rows.sort((a, b) => a.platzId - b.platzId || a.artikel.localeCompare(b.artikel, 'de'));
-  return rows;
+  return rowsFromPlaetze(ort.plaetze);
 }
 
-function OrtPanel({ ort }: { ort: Lagerort }) {
-  const rows = ortRows(ort);
-  const gesamt = rows.reduce((s, r) => s + r.bestand, 0);
-  const belegt = new Set(rows.map((r) => r.platzId)).size;
-  const gewicht = ortGewicht(ort);
-  const max = ortMaxGewicht(ort);
+/** Zeilen nur für eine Regal-Instanz (Gang/Reihe) statt des gesamten Lagerorts. */
+export function rackRows(ort: Lagerort, rack: Pick<PlacedRack, 'kind' | 'gang'>): OrtRow[] {
+  return rowsFromPlaetze(gangPlätze(ort, rack.kind, rack.gang));
+}
+
+function BestandsSummary({
+  plaetzeCount,
+  belegt,
+  gesamt,
+  gewicht,
+  max,
+}: {
+  plaetzeCount: number;
+  belegt: number;
+  gesamt: number;
+  gewicht: number;
+  max: number;
+}) {
   const überlastet = max > 0 && gewicht > max;
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+    <>
       <div className="flex items-center justify-between">
         <span className={MUTED}>
-          {ort.plaetze.length} Plätze · {belegt} belegt
+          {plaetzeCount} Plätze · {belegt} belegt
         </span>
         <span className="font-mono text-[12px] font-semibold text-stock-mid">Σ {fmt(gesamt)}</span>
       </div>
@@ -386,6 +603,13 @@ function OrtPanel({ ort }: { ort: Lagerort }) {
           {max > 0 ? ` / ${fmtKg(max)}` : ''}
         </span>
       </div>
+    </>
+  );
+}
+
+function BestandsTabelle({ rows, emptyText }: { rows: OrtRow[]; emptyText: string }) {
+  return (
+    <>
       <div className={TABLE_HEADER}>
         <span className="w-14 shrink-0">Platz</span>
         <span className="w-16 shrink-0">Artikel</span>
@@ -393,6 +617,7 @@ function OrtPanel({ ort }: { ort: Lagerort }) {
         <span className="w-16 shrink-0 text-right">Bestand</span>
       </div>
       <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+        {rows.length === 0 && <div className={`${MUTED} py-2`}>{emptyText}</div>}
         {rows.map((r) => (
           <div key={`${r.platzId}-${r.artikel}`} className={TABLE_ROW}>
             <span className="w-14 shrink-0 font-mono text-accent">{r.platz}</span>
@@ -404,6 +629,31 @@ function OrtPanel({ ort }: { ort: Lagerort }) {
           </div>
         ))}
       </div>
+    </>
+  );
+}
+
+function OrtPanel({ ort }: { ort: Lagerort }) {
+  const rows = ortRows(ort);
+  const gesamt = rows.reduce((s, r) => s + r.bestand, 0);
+  const belegt = new Set(rows.map((r) => r.platzId)).size;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+      <BestandsSummary plaetzeCount={ort.plaetze.length} belegt={belegt} gesamt={gesamt} gewicht={ortGewicht(ort)} max={ortMaxGewicht(ort)} />
+      <BestandsTabelle rows={rows} emptyText="Keine Bestände in diesem Lager." />
+    </div>
+  );
+}
+
+function RackPanel({ ort, rack }: { ort: Lagerort; rack: PlacedRack }) {
+  const plaetze = useMemo(() => gangPlätze(ort, rack.kind, rack.gang), [ort, rack.kind, rack.gang]);
+  const rows = useMemo(() => rowsFromPlaetze(plaetze), [plaetze]);
+  const gesamt = rows.reduce((s, r) => s + r.bestand, 0);
+  const belegt = new Set(rows.map((r) => r.platzId)).size;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+      <BestandsSummary plaetzeCount={plaetze.length} belegt={belegt} gesamt={gesamt} gewicht={plaetzeGewicht(plaetze)} max={plaetzeMaxGewicht(plaetze)} />
+      <BestandsTabelle rows={rows} emptyText="Keine Bestände in diesem Regal." />
     </div>
   );
 }

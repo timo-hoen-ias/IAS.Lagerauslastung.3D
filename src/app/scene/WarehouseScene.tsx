@@ -19,6 +19,7 @@ import CameraReporter from './CameraReporter';
 import Perimeter from './Perimeter';
 import FloorMask from './FloorMask';
 import Walls from './Walls';
+import CameraHome from './CameraHome';
 import type { Mode } from '../App';
 import type { PositionedEditorOverlay } from '../editorOverlay';
 import EditorLagerOverlayScene from './EditorLagerOverlayScene';
@@ -73,13 +74,13 @@ export default function WarehouseScene({
   return (
     <>
       <color attach="background" args={[VOID]} />
-      <fog attach="fog" args={[FOG, 30, 160]} />
+      <fog attach="fog" args={[FOG, 70, 220]} />
 
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={0.65} />
       <directionalLight
         position={shadow ? [shadow.cx + 20, 40, shadow.cz + 15] : [20, 40, 15]}
         target={lightTarget}
-        intensity={0.9}
+        intensity={1.5}
         color="#dfe8f2"
         castShadow={lighting}
         shadow-mapSize-width={1024}
@@ -92,8 +93,8 @@ export default function WarehouseScene({
         shadow-camera-far={300}
       />
       <primitive object={lightTarget} position={shadow ? [shadow.cx, 0, shadow.cz] : [0, 0, 0]} />
-      <directionalLight position={[-40, 30, -30]} intensity={0.25} color="#7fa0c8" />
-      {lighting && <hemisphereLight args={['#3a4552', '#0d0f13', 0.5]} />}
+      <directionalLight position={[-40, 30, -30]} intensity={0.45} color="#7fa0c8" />
+      {lighting && <hemisphereLight args={['#3a4552', '#0d0f13', 0.7]} />}
 
       <mesh rotation-x={-Math.PI / 2} receiveShadow raycast={() => {}} position={[0, 0, 0]}>
         <planeGeometry args={[600, 600]} />
@@ -119,7 +120,7 @@ export default function WarehouseScene({
       {edit && <RackControls racks={racks} />}
 
       {editorOverlays.map((p) => (
-        <EditorLagerOverlayScene key={p.overlay.id} overlay={p.overlay} offset={p.offset} />
+        <EditorLagerOverlayScene key={p.overlay.id} overlay={p.overlay} offset={p.offset} interactive={interactive} />
       ))}
 
       {mode === 'orbit' && (
@@ -130,6 +131,7 @@ export default function WarehouseScene({
           mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
         />
       )}
+      {mode === 'orbit' && <CameraHome racks={racks} />}
       {mode === 'orbit' && <OrbitFly speed={speed} />}
       {mode === 'orbit' && (
         <GizmoHelper alignment="bottom-left" margin={[80, 90]}>
@@ -139,7 +141,7 @@ export default function WarehouseScene({
       {mode === 'walk' && <WalkControls racks={racks} speed={speed} />}
       {mode === 'topdown' && <TopDownControls racks={racks} />}
 
-      {mode === 'walk' && <LookTarget racks={racks} />}
+      {mode === 'walk' && <LookTarget racks={racks} editorOverlays={editorOverlays.map((p) => p.overlay)} />}
       {mode !== 'walk' && <TargetMarker racks={racks} />}
       <ArticleMarkers racks={racks} />
       <BookingFlash racks={racks} />

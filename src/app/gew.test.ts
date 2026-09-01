@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Lagerplatz } from '../shared/types';
-import { fmtKg, ortGewicht, ortMaxGewicht, ortÜberlastet, platzGewicht, platzÜberlastet } from './gew';
+import { fmtKg, ortGewicht, ortMaxGewicht, ortÜberlastet, plaetzeGewicht, plaetzeMaxGewicht, platzGewicht, platzÜberlastet } from './gew';
 
 const platz = (bestaende: { bestand: number; gewicht: number }[], maxGewicht: number): Lagerplatz => ({
   platzId: 1,
@@ -44,6 +44,14 @@ describe('Gewicht', () => {
     expect(ortGewicht(o)).toBe(40);
     expect(ortMaxGewicht(o)).toBe(150);
     expect(ortÜberlastet(o)).toBe(false);
+  });
+
+  it('plaetzeGewicht/plaetzeMaxGewicht summieren über eine beliebige Teilmenge (z. B. ein Regal)', () => {
+    const plaetze = [platz([{ bestand: 10, gewicht: 2 }], 100), platz([{ bestand: 5, gewicht: 4 }], 50)];
+    expect(plaetzeGewicht(plaetze)).toBe(40);
+    expect(plaetzeMaxGewicht(plaetze)).toBe(150);
+    expect(plaetzeGewicht([])).toBe(0);
+    expect(plaetzeMaxGewicht([])).toBe(0);
   });
 
   it('fmtKg mit einer Dezimalstelle', () => {

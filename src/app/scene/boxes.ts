@@ -108,6 +108,14 @@ const WALL_BAY = 3.0;
 
 export type WallBounds = { minX: number; maxX: number; minZ: number; maxZ: number };
 
+/** Pfeiler-Positionen im Bay-Raster entlang einer Wandkante (inkl. Start + Ende). */
+function wallPiers(from: number, to: number, bay: number): number[] {
+  const out: number[] = [];
+  for (let x = from; x <= to - 1e-6; x += bay) out.push(x);
+  if (out[out.length - 1]! < to - 1e-6) out.push(to);
+  return out;
+}
+
 /** Lager-Umfassungswand als Box-Baupläne: Brüstung + Dachbalken + Pfeiler im Raster, dazwischen Fensteröffnungen. */
 export function wallBoxes(
   bounds: WallBounds,
@@ -122,26 +130,73 @@ export function wallBoxes(
   const bay = opts.bay ?? WALL_BAY;
   const boxes: BoxDesc[] = [];
 
-  const piers = (from: number, to: number): number[] => {
-    const out: number[] = [];
-    for (let x = from; x <= to - 1e-6; x += bay) out.push(x);
-    if (out[out.length - 1]! < to - 1e-6) out.push(to);
-    return out;
-  };
-
   const zWall = (z: number) => {
     const len = maxX - minX;
     const mid = (minX + maxX) / 2;
     boxes.push({ pos: [mid, sill / 2, z], size: [len, sill, thick] });
     boxes.push({ pos: [mid, height - header / 2, z], size: [len, header, thick] });
-    for (const px of piers(minX, maxX)) boxes.push({ pos: [px, height / 2, z], size: [pier, height, thick] });
+    for (const px of wallPiers(minX, maxX, bay)) boxes.push({ pos: [px, height / 2, z], size: [pier, height, thick] });
   };
   const xWall = (x: number) => {
     const len = maxZ - minZ;
     const mid = (minZ + maxZ) / 2;
     boxes.push({ pos: [x, sill / 2, mid], size: [thick, sill, len] });
     boxes.push({ pos: [x, height - header / 2, mid], size: [thick, header, len] });
-    for (const pz of piers(minZ, maxZ)) boxes.push({ pos: [x, height / 2, pz], size: [thick, height, pier] });
+    for (const pz of wallPiers(minZ, maxZ, bay)) boxes.push({ pos: [x, height / 2, pz], size: [thick, height, pier] });
+  };
+
+  zWall(minZ);
+  zWall(maxZ);
+  xWall(minX);
+  xWall(maxX);
+  return boxes;
+}
+
+const WALL_GLASS_INSET = 0.08;
+
+/**
+ * Verglasung der Fensteröffnungen zwischen den Pfeilern (s. `wallBoxes`): sonst
+ * scheint dort der dunkle Szenenhintergrund durch und die Halle wirkt „löchrig"/
+ * schwarz statt umschlossen. Eigene, transparente Geometrie statt Teil von
+ * `wallBoxes`, damit die Wand ihre eigene (opake) Material-Instanz behält.
+ */
+export function wallGlassBoxes(
+  bounds: WallBounds,
+  height: number,
+  opts: { thick?: number; pier?: number; sill?: number; header?: number; bay?: number } = {},
+): BoxDesc[] {
+  const { minX, maxX, minZ, maxZ } = bounds;
+  const thick = opts.thick ?? WALL_THICK;
+  const pier = opts.pier ?? WALL_PIER;
+  const sill = opts.sill ?? WALL_SILL;
+  const header = opts.header ?? WALL_HEADER;
+  const bay = opts.bay ?? WALL_BAY;
+  const boxes: BoxDesc[] = [];
+
+  const windowH = height - sill - header;
+  if (windowH <= 0) return boxes;
+  const midY = sill + windowH / 2;
+  const glassThick = Math.max(0.02, thick - WALL_GLASS_INSET * 2);
+
+  const bays = (positions: number[]): [number, number][] => {
+    const out: [number, number][] = [];
+    for (let i = 0; i < positions.length - 1; i++) {
+      const a = positions[i]! + pier / 2;
+      const b = positions[i + 1]! - pier / 2;
+      if (b > a) out.push([a, b]);
+    }
+    return out;
+  };
+
+  const zWall = (z: number) => {
+    for (const [a, b] of bays(wallPiers(minX, maxX, bay))) {
+      boxes.push({ pos: [(a + b) / 2, midY, z], size: [b - a, windowH, glassThick] });
+    }
+  };
+  const xWall = (x: number) => {
+    for (const [a, b] of bays(wallPiers(minZ, maxZ, bay))) {
+      boxes.push({ pos: [x, midY, (a + b) / 2], size: [glassThick, windowH, b - a] });
+    }
   };
 
   zWall(minZ);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, RotateCw, Trash2, X } from 'lucide-react';
 import type { EditorGang, EditorLager, EditorPlatz, EditorRegal, EditorRegalreihe, Punkt } from '../../shared/editor';
-import { deriveEditorPlaetze } from '../../shared/editor';
+import { deriveEditorPlaetze, rotateReihe } from '../../shared/editor';
 import DecimalInput from './DecimalInput';
 import GrundrissEditor from './GrundrissEditor';
 import { RECHTECK_START } from './grundriss';
@@ -254,18 +254,36 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                         <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
                           Reihe {reihe.seite}
                         </div>
-                        <button
-                          className={iconBtnClass}
-                          onClick={() =>
-                            setGaenge((gs) =>
-                              withGang(gs, gang.id, (g) =>
-                                withReihe(g, reihe.id, (r) => ({ ...r, regale: [...r.regale, newRegal()] })),
-                              ),
-                            )
-                          }
-                        >
-                          <Plus size={13} />
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            className={iconBtnClass}
+                            title="Reihe um 90° drehen — an die reale Ausrichtung der Regale anpassen"
+                            onClick={() =>
+                              setGaenge((gs) =>
+                                withGang(gs, gang.id, (g) =>
+                                  withReihe(g, reihe.id, (r) => ({ ...r, rotation: rotateReihe(r.rotation, 90) })),
+                                ),
+                              )
+                            }
+                          >
+                            <RotateCw size={13} />
+                          </button>
+                          <span className="font-mono text-[11px] text-ink-faint" title="Aktuelle Drehung der Reihe">
+                            {reihe.rotation ?? 0}°
+                          </span>
+                          <button
+                            className={iconBtnClass}
+                            onClick={() =>
+                              setGaenge((gs) =>
+                                withGang(gs, gang.id, (g) =>
+                                  withReihe(g, reihe.id, (r) => ({ ...r, regale: [...r.regale, newRegal()] })),
+                                ),
+                              )
+                            }
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
                       </div>
                       <div className="flex flex-col gap-1.5">
                         {reihe.regale.map((regal, i) => (

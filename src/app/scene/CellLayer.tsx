@@ -136,7 +136,7 @@ function CellLayer({
           e.stopPropagation();
           const s = segFor(e);
           const p = s && platzById.get(s.platzId);
-          if (p) setSelection({ ort, platz: p });
+          if (p) setSelection({ ort, platz: p, rack: placed });
         },
       }
     : {};

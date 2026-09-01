@@ -77,7 +77,7 @@ function Rack({
       ? {
           onClick: (e: ThreeEvent<MouseEvent>) => {
             e.stopPropagation();
-            setSelection({ ort: placed.ort, platz: null });
+            setSelection({ ort: placed.ort, platz: null, rack: placed });
           },
           onPointerOver: (e: ThreeEvent<PointerEvent>) => {
             e.stopPropagation();

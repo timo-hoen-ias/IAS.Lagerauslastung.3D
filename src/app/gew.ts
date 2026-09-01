@@ -14,14 +14,24 @@ export function platzÜberlastet(platz: Lagerplatz): boolean {
   return platzMaxGewicht(platz) > 0 && platzGewicht(platz) > platzMaxGewicht(platz);
 }
 
+/** Gesamtgewicht einer beliebigen Platzmenge (z. B. ein Regal/Gang oder ein ganzer Lagerort). */
+export function plaetzeGewicht(plaetze: Lagerplatz[]): number {
+  return plaetze.reduce((s, p) => s + platzGewicht(p), 0);
+}
+
+/** Summe der Maximalgewichte einer beliebigen Platzmenge. */
+export function plaetzeMaxGewicht(plaetze: Lagerplatz[]): number {
+  return plaetze.reduce((s, p) => s + platzMaxGewicht(p), 0);
+}
+
 /** Gesamtgewicht eines Lagerorts über alle Plätze. */
 export function ortGewicht(ort: Lagerort): number {
-  return ort.plaetze.reduce((s, p) => s + platzGewicht(p), 0);
+  return plaetzeGewicht(ort.plaetze);
 }
 
 /** Summe der Maximalgewichte aller Plätze eines Lagerorts. */
 export function ortMaxGewicht(ort: Lagerort): number {
-  return ort.plaetze.reduce((s, p) => s + platzMaxGewicht(p), 0);
+  return plaetzeMaxGewicht(ort.plaetze);
 }
 
 export function ortÜberlastet(ort: Lagerort): boolean {

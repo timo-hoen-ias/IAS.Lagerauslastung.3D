@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import type { Lagerort } from '../../shared/types';
+import type { EditorLagerOverlay } from '../editorOverlay';
 import type { PlacedRack } from './transform';
-import { LOOK_REACH, pickLookHit } from './LookTarget';
+import { LOOK_REACH, pickEditorLookHit, pickLookHit } from './LookTarget';
 
 function ort(id: string): Lagerort {
   return {
@@ -39,6 +40,11 @@ describe('pickLookHit', () => {
       LOOK_REACH,
     );
     expect(r?.ort.lagerkennung).toBe('A');
+  });
+
+  it('liefert die getroffene Regal-Instanz mit (für die Regal-Ebene im Inspector)', () => {
+    const r = pickLookHit([hit(5, { rackKey: 'B' })], byKey, LOOK_REACH);
+    expect(r?.rack.key).toBe('B');
   });
 
   it('liefert null bei Treffer außerhalb der Reichweite', () => {
@@ -122,5 +128,52 @@ describe('pickLookHit', () => {
   it('Treffer nur aus Nicht-Regalen → null', () => {
     const r = pickLookHit([hit(5, {})], byKey, LOOK_REACH);
     expect(r).toBeNull();
+  });
+});
+
+function editorHit(
+  dist: number,
+  ud: { editorOverlayId?: string; editorRegalId?: string; editorZelleKey?: string },
+): THREE.Intersection {
+  return { distance: dist, object: { userData: ud } as unknown as THREE.Object3D, instanceId: null as number | null } as THREE.Intersection;
+}
+
+function editorOverlay(id: string): EditorLagerOverlay {
+  return {
+    id,
+    name: id,
+    lagerkennung: id,
+    grundriss: [],
+    regale: [
+      {
+        placement: { gangId: 'g1', gangNummer: 1, reiheId: 'r1', regalId: 'reg1', seite: 'links', position: [0, 0, 0], size: { w: 1, h: 1, d: 1 }, ebenen: 1, rotationY: 0 },
+        zellen: [{ ebene: 1, spalte: 1 }],
+      },
+    ],
+  };
+}
+
+describe('pickEditorLookHit', () => {
+  const overlaysById = new Map([['x', editorOverlay('x')]]);
+
+  it('löst eine getroffene Editor-Zelle über overlayId/regalId/zelleKey auf', () => {
+    const r = pickEditorLookHit([editorHit(5, { editorOverlayId: 'x', editorRegalId: 'reg1', editorZelleKey: '1:1' })], overlaysById, LOOK_REACH);
+    expect(r?.overlay.id).toBe('x');
+    expect(r?.regalId).toBe('reg1');
+    expect(r?.zelle?.ebene).toBe(1);
+    expect(r?.level).toBe('platz');
+  });
+
+  it('überspringt Treffer ohne Editor-userData und außerhalb der Reichweite', () => {
+    expect(pickEditorLookHit([editorHit(3, {}), editorHit(40, { editorOverlayId: 'x', editorRegalId: 'reg1' })], overlaysById, LOOK_REACH)).toBeNull();
+  });
+
+  it('ignoriert unbekannte overlayId/regalId', () => {
+    expect(pickEditorLookHit([editorHit(5, { editorOverlayId: 'unbekannt', editorRegalId: 'reg1' })], overlaysById, LOOK_REACH)).toBeNull();
+    expect(pickEditorLookHit([editorHit(5, { editorOverlayId: 'x', editorRegalId: 'unbekannt' })], overlaysById, LOOK_REACH)).toBeNull();
+  });
+
+  it('leere Trefferliste → null', () => {
+    expect(pickEditorLookHit([], overlaysById, LOOK_REACH)).toBeNull();
   });
 });

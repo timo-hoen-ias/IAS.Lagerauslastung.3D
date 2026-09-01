@@ -2,7 +2,8 @@ import { useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Lagerort, Lagerplatz } from '../../shared/types';
-import { setSelection } from '../store';
+import { clearSelections, setEditorSelection, setSelection, type EditorSelection } from '../store';
+import type { EditorLagerOverlay } from '../editorOverlay';
 import type { PlacedRack } from './transform';
 
 /**
@@ -12,7 +13,7 @@ import type { PlacedRack } from './transform';
  */
 export const LOOK_REACH = 30;
 
-export type LookHit = { ort: Lagerort; platz: Lagerplatz | null };
+export type LookHit = { ort: Lagerort; platz: Lagerplatz | null; rack: PlacedRack };
 
 /**
  * Pure Funktion: extrahiert aus der (nach Distanz aufsteigend sortierten)
@@ -34,18 +35,52 @@ export function pickLookHit(
     if (!rack) continue;
     const platzId = i.instanceId != null ? ud.platzIds?.[i.instanceId] : undefined;
     const platz = platzId != null ? (rack.ort.plaetze.find((p) => p.platzId === platzId) ?? null) : null;
-    return { ort: rack.ort, platz };
+    return { ort: rack.ort, platz, rack };
+  }
+  return null;
+}
+
+/**
+ * Wie `pickLookHit`, aber für Zellen eines Editor-Lager-Overlays (s.
+ * `EditorLagerOverlayScene.tsx`): erkennt `userData.editorOverlayId`/
+ * `editorRegalId`/`editorZelleKey` statt `rackKey`/`platzIds`. Läuft nach
+ * `pickLookHit` über dieselbe Trefferliste (nur wenn kein Sage-Regal
+ * getroffen wurde), da echte Läger und Editor-Overlays sich im Raum nicht
+ * überschneiden (s. `stageEditorOverlays`).
+ */
+export function pickEditorLookHit(
+  intersects: THREE.Intersection[],
+  overlaysById: Map<string, EditorLagerOverlay>,
+  maxDist: number,
+): NonNullable<EditorSelection> | null {
+  for (const i of intersects) {
+    if (i.distance > maxDist) return null;
+    const ud = (i.object.userData ?? {}) as { editorOverlayId?: string; editorRegalId?: string; editorZelleKey?: string };
+    if (!ud.editorOverlayId || !ud.editorRegalId) continue;
+    const overlay = overlaysById.get(ud.editorOverlayId);
+    if (!overlay) continue;
+    const regal = overlay.regale.find((r) => r.placement.regalId === ud.editorRegalId);
+    if (!regal) continue;
+    const zelle = ud.editorZelleKey ? (regal.zellen.find((z) => `${z.ebene}:${z.spalte}` === ud.editorZelleKey) ?? null) : null;
+    return {
+      overlay,
+      level: 'platz',
+      gangId: regal.placement.gangId,
+      reiheId: regal.placement.reiheId,
+      regalId: regal.placement.regalId,
+      zelle,
+    };
   }
   return null;
 }
 
 /**
  * Ego-Modus: erkennt per Zentral-Raycast (auf LOOK_REACH begrenzt), welches
- * Regal/Fach der Spieler anvisiert, und schreibt es in die Auswahl. Der
- * Inspector zeigt die Info dann als normal fixiertes UI-Panel (kein
- * schwebendes 3D-Panel).
+ * Regal/Fach bzw. welche Editor-Lager-Zelle der Spieler anvisiert, und
+ * schreibt es in die jeweilige Auswahl. Der Inspector zeigt die Info dann
+ * als normal fixiertes UI-Panel (kein schwebendes 3D-Panel).
  */
-export default function LookTarget({ racks }: { racks: PlacedRack[] }) {
+export default function LookTarget({ racks, editorOverlays = [] }: { racks: PlacedRack[]; editorOverlays?: EditorLagerOverlay[] }) {
   const camera = useThree((s) => s.camera);
   const scene = useThree((s) => s.scene);
   const raycaster = useRef(new THREE.Raycaster());
@@ -53,18 +88,26 @@ export default function LookTarget({ racks }: { racks: PlacedRack[] }) {
   const lastKey = useRef('');
 
   const byKey = useMemo(() => new Map(racks.map((r) => [r.key, r])), [racks]);
+  const overlaysById = useMemo(() => new Map(editorOverlays.map((o) => [o.id, o])), [editorOverlays]);
 
   useFrame(() => {
     raycaster.current.far = LOOK_REACH;
     raycaster.current.setFromCamera(ndc.current, camera);
     const intersects = raycaster.current.intersectObjects(scene.children, true);
 
-    const found = pickLookHit(intersects, byKey, LOOK_REACH);
+    const sageHit = pickLookHit(intersects, byKey, LOOK_REACH);
+    const editorHit = sageHit ? null : pickEditorLookHit(intersects, overlaysById, LOOK_REACH);
 
-    const key = found ? `${found.ort.lagerkennung}|${found.platz?.platzId ?? ''}` : '';
+    const key = sageHit
+      ? `sage|${sageHit.ort.lagerkennung}|${sageHit.platz?.platzId ?? ''}`
+      : editorHit
+        ? `editor|${editorHit.overlay.id}|${editorHit.regalId}|${editorHit.zelle?.ebene ?? ''}:${editorHit.zelle?.spalte ?? ''}`
+        : '';
     if (key !== lastKey.current) {
       lastKey.current = key;
-      setSelection(found);
+      if (sageHit) setSelection(sageHit);
+      else if (editorHit) setEditorSelection(editorHit);
+      else clearSelections();
     }
   });
 

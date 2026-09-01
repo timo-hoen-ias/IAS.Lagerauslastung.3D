@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveEditorPlaetze, type EditorGang } from './editor';
+import { deriveEditorPlaetze, rotateReihe, type EditorGang } from './editor';
 
 /** Baut ein Regal-Kurzform-Objekt für die Tests. */
 function regal(id: string, ebenen: number, plaetzeProEbene: number) {
@@ -73,5 +73,17 @@ describe('deriveEditorPlaetze', () => {
     expect(ersterGang2.dim1).toBe(2);
     expect(ersterGang2.dim3).toBe(1);
     expect(ersterGang2.code).toBe('L-F-H;2;1;1');
+  });
+});
+
+describe('rotateReihe', () => {
+  it('dreht undefinierte Ausgangsrotation ausgehend von 0°', () => {
+    expect(rotateReihe(undefined, 90)).toBe(90);
+  });
+
+  it('normalisiert auf [0,360), auch rückwärts über 0° hinaus', () => {
+    expect(rotateReihe(0, -90)).toBe(270);
+    expect(rotateReihe(270, 90)).toBe(0);
+    expect(rotateReihe(270, 180)).toBe(90);
   });
 });

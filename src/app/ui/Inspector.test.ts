@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Lagerort } from '../../shared/types';
-import { ortRows } from './Inspector';
+import { ortRows, rackRows } from './Inspector';
 
 const ort = (plaetze: Lagerort['plaetze']): Lagerort => ({
   lagerkennung: 'L1',
@@ -10,9 +10,9 @@ const ort = (plaetze: Lagerort['plaetze']): Lagerort => ({
   plaetze,
 });
 
-const platz = (platzId: number, kurz: string, bestaende: { artikel: string; bestand: number }[]) => ({
+const platz = (platzId: number, kurz: string, bestaende: { artikel: string; bestand: number }[], gang = 1) => ({
   platzId,
-  dim: { d1: 1, d2: 1, d3: 1 },
+  dim: { d1: gang, d2: 1, d3: 1 },
   ebene: 0,
   kurz,
   platzbezeichnung: kurz,
@@ -44,5 +44,24 @@ describe('ortRows', () => {
     const rows = ortRows(ort([platz(7, '', [{ artikel: 'X1', bestand: 2 }]), platz(9, 'D', [])]));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ platzId: 7, platz: '#7', artikel: 'X1', bestand: 2 });
+  });
+});
+
+describe('rackRows', () => {
+  it('filtert auf die Plätze einer Regal-Instanz (Gang) statt des gesamten Lagerorts', () => {
+    const o = ort([
+      platz(1, 'A', [{ artikel: '1001', bestand: 3 }], 1),
+      platz(2, 'B', [{ artikel: '2001', bestand: 10 }], 2),
+      platz(3, 'C', [{ artikel: '3001', bestand: 5 }], 1),
+    ]);
+    const gang0 = rackRows(o, { kind: 'rack', gang: 0 });
+    expect(gang0.map((r) => r.platz)).toEqual(['A', 'C']);
+    const gang1 = rackRows(o, { kind: 'rack', gang: 1 });
+    expect(gang1.map((r) => r.platz)).toEqual(['B']);
+  });
+
+  it('liefert leere Liste für einen Gang ohne Bestand', () => {
+    const o = ort([platz(1, 'A', [{ artikel: '1001', bestand: 3 }], 1)]);
+    expect(rackRows(o, { kind: 'rack', gang: 5 })).toEqual([]);
   });
 });

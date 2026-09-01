@@ -90,3 +90,41 @@ von Standardpositionen beachten, dass eine bereits gespeicherte Position Vorrang
   Lagerhallen-Terminals/Monitoren, ein Light-Theme wurde nicht angefragt und passt nicht
   zum Cockpit-Charakter. Farben werden trotzdem ausschließlich über die Tokens referenziert
   (nie Hex-Literale in Komponenten, außer beim Spiegeln von `colors.ts`-Werten).
+
+## Domänenwissen: Lager-Editor (Gang/Regalreihe/Regal/Platz)
+
+Der Lager-Editor (`shared/editor.ts`, `scene/editorLayout.ts`, `EditorLagerOverlayScene.tsx`)
+hat ein eigenes, von den Sage-Tabellen unabhängiges Struktur-Modell, das die reale
+Aufbaulogik eines Lagers abbildet:
+
+```
+EditorLager → EditorGang (nummer)
+            → EditorRegalreihe (seite: 'links' | 'rechts')
+              → EditorRegal (ebenen, plaetzeProEbene)
+                → Zelle (Ebene × Spalte) → echter Sage-Lagerplatz (per Dim1/2/3-Abgleich)
+```
+
+**Ein Gang besteht aus genau zwei Regalreihen, „links" und „rechts"** — das ist die
+fachliche Definition eines Gangs (nicht nur eine einzelne Regalreihe). Dim1 = Gang-Nummer,
+Dim2 = Ebene, Dim3 = laufende Spaltenposition über den ganzen Gang hinweg (Reihe „links"
+dann „rechts", Reset nur bei neuem Gang) — siehe Kommentar in `shared/editor.ts`.
+
+Die Ebenen-Hierarchie im Viewer ist entsprechend **Platz → Regal → Regalreihe → Gang →
+Lager** (5 Stufen), nicht nur Platz → Lager. Das ist zu unterscheiden von der Sage-
+Live-Ansicht (`scene/layout.ts`), wo eine `PlacedRack`-Instanz bereits 1:1 einem Gang
+(Hochregallager) bzw. einer Reihe (Flächenlager) entspricht — dort gibt es historisch
+keine eigene Regalreihen-/Gang-Zwischenebene, weil das Sage-Datenmodell sie nicht liefert.
+
+**Interaktionskonzept für Editor-Lager im 3D-Viewer:**
+- Angeklickt wird immer nur der **Platz** (einzelne Zelle) — sowohl im Orbit-/TopDown-Modus
+  (normaler `onClick`) als auch im Ego-/Walk-Modus (Crosshair-Raycast über `LookTarget.tsx`,
+  analog zu Sage-Regalen, per `userData.editorOverlayId/editorRegalId/editorZelleKey`).
+- Die höheren Ebenen (Regal/Regalreihe/Gang/Lager) haben **keine eigene 3D-Klickfläche** —
+  sie werden über einen Ebenen-Breadcrumb im Inspector erreicht (Lager › Gang › Reihe ›
+  Regal › Platz, trunkiert auf die aktuelle Tiefe, wie beim bestehenden Sage-Breadcrumb).
+- Aggregierte Ansichten (Regal/Reihe/Gang/Lager) bieten einen Umschalter „Je Platz" /
+  „Je Artikel" (`groupRowsByArtikel` in `article.ts`), um Bestände wahlweise pro Lagerplatz
+  oder aufsummiert pro Artikelnummer zu sehen.
+- Auswahl-State: `EditorSelection` in `store.tsx`, getrennt von der Sage-`Selection` und mit
+  ihr gegenseitig exklusiv (Klick auf das eine löscht das andere) — der Inspector zeigt immer
+  nur eine der beiden Detailansichten gleichzeitig.

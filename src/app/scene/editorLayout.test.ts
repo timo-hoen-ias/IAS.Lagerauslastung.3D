@@ -23,6 +23,30 @@ describe('layoutEditorGaenge', () => {
     expect(b.position[0]).toBe(3.5); // Mitte von [2,5]
   });
 
+  it('setzt rotationY aus der Reihen-Drehung (Grad → Radiant), ohne die Position zu verändern', () => {
+    const gaenge: EditorGang[] = [
+      {
+        id: 'g1',
+        nummer: 1,
+        breite: 3,
+        reihen: [{ id: 'r1', seite: 'links', regale: [regal('a', 2, 2, 1)], rotation: 90 }],
+      },
+    ];
+    const placements = layoutEditorGaenge(gaenge);
+    const ohneRotation = layoutEditorGaenge([{ ...gaenge[0]!, reihen: [{ ...gaenge[0]!.reihen[0]!, rotation: undefined }] }]);
+    expect(placements[0]!.rotationY).toBeCloseTo(Math.PI / 2);
+    expect(placements[0]!.position).toEqual(ohneRotation[0]!.position);
+    expect(ohneRotation[0]!.rotationY).toBe(0);
+  });
+
+  it('reicht die Gang-Nummer (für die Ebenen-Anzeige im Inspector) an jedes Regal der Placements durch', () => {
+    const gaenge: EditorGang[] = [
+      { id: 'g1', nummer: 3, breite: 3, reihen: [{ id: 'r1', seite: 'links', regale: [regal('a', 2, 2, 1)] }] },
+    ];
+    const placements = layoutEditorGaenge(gaenge);
+    expect(placements[0]!.gangNummer).toBe(3);
+  });
+
   it('spiegelt Reihe "links" und "rechts" symmetrisch um die Gangmitte, je nach Regaltiefe', () => {
     const gaenge: EditorGang[] = [
       {

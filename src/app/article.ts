@@ -146,6 +146,40 @@ export function fmtMenge(menge: number): string {
   return Number.isInteger(menge) ? String(menge) : String(Math.round(menge * 100) / 100);
 }
 
+// ---- Bestandszeilen (Platz × Artikel) für Inspector-Tabellen ---------------
+
+export type OrtRow = { platzId: number; platz: string; artikel: string; bezeichnung: string; bestand: number };
+
+/** Zerlegt eine beliebige Platzmenge (Regal/Reihe/Gang/Lager) in Platz×Artikel-Zeilen für die Bestandstabelle. */
+export function rowsFromPlaetze(plaetze: Lagerplatz[]): OrtRow[] {
+  const rows: OrtRow[] = [];
+  for (const p of plaetze) {
+    if (p.bestaende.length === 0) continue;
+    for (const b of p.bestaende) {
+      rows.push({ platzId: p.platzId, platz: p.kurz || `#${p.platzId}`, artikel: b.artikelnummer, bezeichnung: b.bezeichnung1, bestand: b.bestand });
+    }
+  }
+  rows.sort((a, b) => a.platzId - b.platzId || a.artikel.localeCompare(b.artikel, 'de'));
+  return rows;
+}
+
+export type ArtikelGroupRow = { artikel: string; bezeichnung: string; bestand: number; plaetze: number };
+
+/** Gruppiert Bestandszeilen nach Artikelnummer (Gesamtbestand + Anzahl Plätze) statt nach Platz. */
+export function groupRowsByArtikel(rows: OrtRow[]): ArtikelGroupRow[] {
+  const map = new Map<string, ArtikelGroupRow>();
+  for (const r of rows) {
+    const e = map.get(r.artikel);
+    if (e) {
+      e.bestand += r.bestand;
+      e.plaetze += 1;
+    } else {
+      map.set(r.artikel, { artikel: r.artikel, bezeichnung: r.bezeichnung, bestand: r.bestand, plaetze: 1 });
+    }
+  }
+  return [...map.values()].sort((a, b) => a.artikel.localeCompare(b.artikel, 'de'));
+}
+
 type FlashBuchung = {
   id: number;
   artikelnummer: string;

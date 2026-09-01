@@ -8,11 +8,13 @@ import {
   fmtMenge,
   FLASH_HERKUNFT_COLOR,
   FLASH_ZIEL_COLOR,
+  groupRowsByArtikel,
   platzIdsMitArtikel,
   plätzeMitArtikel,
   platzIndex,
   platzMitId,
   platzWorld,
+  rowsFromPlaetze,
 } from './article';
 import type { PlacedRack, RackTransform } from './scene/transform';
 
@@ -230,6 +232,32 @@ describe('fmtMenge', () => {
     expect(fmtMenge(5)).toBe('5');
     expect(fmtMenge(5.5)).toBe('5.5');
     expect(fmtMenge(0.333)).toBe('0.33');
+  });
+});
+
+describe('rowsFromPlaetze', () => {
+  it('überspringt leere Plätze und sortiert nach Platz, dann Artikel', () => {
+    const rows = rowsFromPlaetze([
+      platz(2, [bestand('B1', 'B', 3)]),
+      platz(1, [bestand('X2', 'X2', 1), bestand('X1', 'X1', 2)]),
+      platz(3, []),
+    ]);
+    expect(rows.map((r) => `${r.platzId}:${r.artikel}`)).toEqual(['1:X1', '1:X2', '2:B1']);
+  });
+});
+
+describe('groupRowsByArtikel', () => {
+  it('summiert den Bestand je Artikelnummer und zählt die beteiligten Plätze', () => {
+    const rows = rowsFromPlaetze([platz(1, [bestand('X1', 'Schraube', 10)]), platz(2, [bestand('X1', 'Schraube', 5)]), platz(3, [bestand('X2', 'Mutter', 7)])]);
+    const grouped = groupRowsByArtikel(rows);
+    expect(grouped).toEqual([
+      { artikel: 'X1', bezeichnung: 'Schraube', bestand: 15, plaetze: 2 },
+      { artikel: 'X2', bezeichnung: 'Mutter', bestand: 7, plaetze: 1 },
+    ]);
+  });
+
+  it('liefert eine leere Liste ohne Zeilen', () => {
+    expect(groupRowsByArtikel([])).toEqual([]);
   });
 });
 

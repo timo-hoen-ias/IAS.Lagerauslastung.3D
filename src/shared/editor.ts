@@ -26,7 +26,14 @@ export type EditorRegalreihe = {
   regale: EditorRegal[];
   /** Manueller Versatz (m) der ganzen Reihe ab der automatischen Gang-Position — per Drag in der 3D-Vorschau gesetzt, wirkt zusätzlich zum Versatz einzelner Regale. */
   versatz?: Punkt;
+  /** Drehung der ganzen Reihe um die eigene Achse (Grad, 90°-Raster) — gleicht die Auto-Anordnung an die reale Ausrichtung der Regale an. */
+  rotation?: number;
 };
+
+/** Dreht eine Reihe um `deltaDeg` (90°-Raster), auf [0,360) normalisiert. */
+export function rotateReihe(rotation: number | undefined, deltaDeg: number): number {
+  return (((rotation ?? 0) + deltaDeg) % 360 + 360) % 360;
+}
 
 export type EditorGang = {
   id: string;

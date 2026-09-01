@@ -5,6 +5,7 @@ import {
   applyTransform,
   clampScale,
   dist2d,
+  frameRacksCamera,
   IDENTITY_TRANSFORM,
   moveRack,
   rackAabb,
@@ -193,6 +194,38 @@ describe('resizeRack / resizeFactor / resizeHeightFactor', () => {
 describe('dist2d', () => {
   it('berechnet die Länge einer Strecke', () => {
     expect(dist2d({ x: 0, z: 0 }, { x: 3, z: 4 })).toBe(5);
+  });
+});
+
+describe('frameRacksCamera', () => {
+  it('liefert null ohne Regale', () => {
+    expect(frameRacksCamera([])).toBeNull();
+  });
+
+  it('zielt auf den Mittelpunkt der Bounding-Box', () => {
+    const p1 = applyTransform(base, { x: 0, z: 0, rotY: 0, scale: { x: 1, y: 1, z: 1 } });
+    const p2 = applyTransform(base, { x: 20, z: 0, rotY: 0, scale: { x: 1, y: 1, z: 1 } });
+    const view = frameRacksCamera([p1, p2])!;
+    const b = rackBounds([p1, p2], 0)!;
+    expect(view.target[0]).toBeCloseTo((b.minX + b.maxX) / 2, 5);
+    expect(view.target[2]).toBeCloseTo((b.minZ + b.maxZ) / 2, 5);
+    expect(view.target[1]).toBe(0);
+  });
+
+  it('rückt bei größeren Layouts weiter weg (skaliert mit der Ausdehnung)', () => {
+    const small = applyTransform(base, IDENTITY_TRANSFORM);
+    const big = applyTransform(base, { x: 200, z: 0, rotY: 0, scale: { x: 1, y: 1, z: 1 } });
+    const nah = frameRacksCamera([small])!;
+    const weit = frameRacksCamera([small, big])!;
+    const distNah = Math.hypot(nah.pos[0] - nah.target[0], nah.pos[2] - nah.target[2]);
+    const distWeit = Math.hypot(weit.pos[0] - weit.target[0], weit.pos[2] - weit.target[2]);
+    expect(distWeit).toBeGreaterThan(distNah);
+  });
+
+  it('hat immer eine positive Höhe über dem Boden', () => {
+    const p = applyTransform(base, IDENTITY_TRANSFORM);
+    const view = frameRacksCamera([p])!;
+    expect(view.pos[1]).toBeGreaterThan(0);
   });
 });
 

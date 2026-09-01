@@ -9,15 +9,25 @@ import {
   type RackTransform,
 } from './scene/transform';
 import type { RackPlacement } from './scene/layout';
+import type { EditorLagerOverlay, EditorLevel, EditorZelleOverlay } from './editorOverlay';
 
-export type Selection = { ort: Lagerort; platz: Lagerplatz | null } | null;
+/**
+ * `rack` verankert die Auswahl auf einer konkreten Regal-Instanz (Gang/Reihe,
+ * s. `RackPlacement.gang` in `layout.ts`) statt auf dem gesamten Lagerort –
+ * ermöglicht die Regal-Ebene im Inspector zwischen Platz- und Lager-Ansicht.
+ * `null`, wenn die Auswahl nicht auf ein bestimmtes Regal zurückgeht (z. B.
+ * Artikelsuche-Treffer ohne 3D-Kontext).
+ */
+export type Selection = { ort: Lagerort; platz: Lagerplatz | null; rack: PlacedRack | null } | null;
 
 let selection: Selection = null;
 const selectionListeners = new Set<() => void>();
 
 export function setSelection(s: Selection): void {
   selection = s;
+  if (s) editorSelection = null;
   for (const l of selectionListeners) l();
+  for (const l of editorSelectionListeners) l();
 }
 
 function subscribeSelection(cb: () => void): () => void {
@@ -47,6 +57,52 @@ export function useIsRackOrtSelected(lagerkennung: string): boolean {
 export function useSelectedPlatzId(rackKey: string): number {
   const getSnapshot = () => (selection?.ort.lagerkennung === rackKey ? (selection?.platz?.platzId ?? -1) : -1);
   return useSyncExternalStore(subscribeSelection, getSnapshot, getSnapshot);
+}
+
+// ---- Auswahl im Lager-Editor-Overlay (Platz → Regal → Regalreihe → Gang → Lager) -------
+
+/**
+ * Auswahl innerhalb eines im Editor entworfenen Lagers, unabhängig von `Selection` (Sage-
+ * Live-Ansicht) – beide Auswahl-Arten schließen sich gegenseitig aus (s. `setSelection`/
+ * `setEditorSelection`), der Inspector zeigt immer nur eine davon. `zelle` ist nur bei
+ * `level === 'platz'` gesetzt; die IDs (`gangId`/`reiheId`/`regalId`) bleiben beim
+ * Hochnavigieren über den Breadcrumb erhalten und grenzen die jeweilige Ebene ein
+ * (s. `editorZellen` in `editorOverlay.ts`).
+ */
+export type EditorSelection = {
+  overlay: EditorLagerOverlay;
+  level: EditorLevel;
+  gangId: string;
+  reiheId: string;
+  regalId: string;
+  zelle: EditorZelleOverlay | null;
+} | null;
+
+let editorSelection: EditorSelection = null;
+const editorSelectionListeners = new Set<() => void>();
+
+export function setEditorSelection(s: EditorSelection): void {
+  editorSelection = s;
+  if (s) selection = null;
+  for (const l of editorSelectionListeners) l();
+  for (const l of selectionListeners) l();
+}
+
+function subscribeEditorSelection(cb: () => void): () => void {
+  editorSelectionListeners.add(cb);
+  return () => editorSelectionListeners.delete(cb);
+}
+
+export function useEditorSelection(): EditorSelection {
+  return useSyncExternalStore(subscribeEditorSelection, () => editorSelection, () => editorSelection);
+}
+
+/** Leert beide Auswahl-Arten zugleich (z. B. Ego-Modus: Blick trifft weder Sage-Regal noch Editor-Zelle). */
+export function clearSelections(): void {
+  selection = null;
+  editorSelection = null;
+  for (const l of selectionListeners) l();
+  for (const l of editorSelectionListeners) l();
 }
 
 // ---- Spieler (für Minimap) -------------------------------------------------

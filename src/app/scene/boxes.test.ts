@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { floorFrameBoxes, mergeBoxes, rackParts, wallBoxes } from './boxes';
+import { floorFrameBoxes, mergeBoxes, rackParts, wallBoxes, wallGlassBoxes } from './boxes';
 import { BASE_H, FRAME_CLEAR, LEVEL_GAP, POST, TOP_H, TOP_OVERHANG } from './layout';
 
 describe('mergeBoxes', () => {
@@ -106,5 +106,33 @@ describe('wallBoxes', () => {
     const boxes = wallBoxes(b, height);
     const endPier = boxes.some((bb) => bb.size[1] === height && Math.abs(bb.pos[0] - 8.5) < 1e-6);
     expect(endPier).toBe(true);
+  });
+});
+
+describe('wallGlassBoxes', () => {
+  const bounds = { minX: 0, maxX: 12, minZ: 0, maxZ: 12 };
+  const height = 4;
+
+  it('füllt jede Fensteröffnung zwischen zwei Pfeilern (4 Bays je Seite)', () => {
+    const boxes = wallGlassBoxes(bounds, height);
+    expect(boxes.length).toBe(16); // 4 Seiten × 4 Bays (Pfeiler bei 0,3,6,9,12)
+  });
+
+  it('sitzt vertikal zwischen Brüstung und Dachbalken', () => {
+    const [glass] = wallGlassBoxes(bounds, height);
+    expect(glass!.size[1]).toBeCloseTo(height - 1 - 0.6, 6); // height - sill - header
+    expect(glass!.pos[1]).toBeCloseTo(1 + (height - 1 - 0.6) / 2, 6); // sill + windowH/2
+  });
+
+  it('bleibt innerhalb der Pfeilerbreite (keine Überlappung)', () => {
+    const boxes = wallGlassBoxes(bounds, height);
+    // erste Scheibe liegt zwischen Pfeiler bei 0 und 3, exklusive halber Pfeilerbreite (0.4/2) je Seite
+    const first = boxes.find((b) => b.pos[2] === 0 && b.pos[0] === 1.5)!;
+    expect(first).toBeDefined();
+    expect(first.size[0]).toBeCloseTo(3 - 0.4, 6);
+  });
+
+  it('liefert nichts, wenn kein Fensterband Platz hat (Wand niedriger als Brüstung+Dach)', () => {
+    expect(wallGlassBoxes(bounds, 1)).toEqual([]);
   });
 });

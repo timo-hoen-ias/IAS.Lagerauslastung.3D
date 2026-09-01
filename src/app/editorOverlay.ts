@@ -2,6 +2,7 @@ import type { Lagerort, Lagerplatz } from '../shared/types';
 import type { EditorGang, EditorLager, Punkt } from '../shared/editor';
 import { deriveEditorPlaetze } from '../shared/editor';
 import { layoutEditorGaenge, type EditorRegalPlacement } from './scene/editorLayout';
+import { rowsFromPlaetze, type OrtRow } from './article';
 
 /** Eine Zelle (Ebene×Spalte) eines Regals — `platz` fehlt, wenn kein passender Sage-Lagerplatz gefunden wurde. */
 export type EditorZelleOverlay = { ebene: number; spalte: number; platz?: Lagerplatz };
@@ -74,4 +75,58 @@ export function buildEditorOverlay(lager: EditorLagerLike, ort: Lagerort | undef
     grundriss: lager.grundriss,
     regale: placements.map((placement) => ({ placement, zellen: zellenByRegal.get(placement.regalId) ?? [] })),
   };
+}
+
+// ---- Ebenen-Navigation (Platz → Regal → Regalreihe → Gang → Lager) im Inspector ---------
+
+export type EditorLevel = 'platz' | 'regal' | 'reihe' | 'gang' | 'lager';
+
+export type EditorLevelIds = { gangId: string; reiheId: string; regalId: string };
+
+/** Alle Zellen (inkl. ohne echten Sage-Platz) der Regale, die zur gewählten Ebene gehören. */
+export function editorZellen(overlay: EditorLagerOverlay, level: EditorLevel, ids: EditorLevelIds): EditorZelleOverlay[] {
+  const regale = overlay.regale.filter((r) => {
+    const p = r.placement;
+    if (level === 'lager') return true;
+    if (level === 'gang') return p.gangId === ids.gangId;
+    if (level === 'reihe') return p.reiheId === ids.reiheId;
+    return p.regalId === ids.regalId; // 'regal' | 'platz'
+  });
+  return regale.flatMap((r) => r.zellen);
+}
+
+/** Nur die Zellen mit echtem Sage-Bestand einer Ebene (für Bestands-/Gewichtssummen). */
+export function editorPlaetze(overlay: EditorLagerOverlay, level: EditorLevel, ids: EditorLevelIds): Lagerplatz[] {
+  return editorZellen(overlay, level, ids)
+    .map((z) => z.platz)
+    .filter((p): p is Lagerplatz => p != null);
+}
+
+/** Bestandszeilen (Platz × Artikel) einer Ebene — dieselbe Form wie `ortRows`/`rackRows` der Live-Ansicht. */
+export function editorLevelRows(overlay: EditorLagerOverlay, level: EditorLevel, ids: EditorLevelIds): OrtRow[] {
+  return rowsFromPlaetze(editorPlaetze(overlay, level, ids));
+}
+
+/** Platzanzahl (alle Zellen) und belegte Plätze (mit Sage-Bestand) einer Ebene, für die Summenzeile. */
+export function editorCounts(overlay: EditorLagerOverlay, level: EditorLevel, ids: EditorLevelIds): { plaetzeCount: number; belegt: number } {
+  const zellen = editorZellen(overlay, level, ids);
+  const belegt = zellen.filter((z) => z.platz && z.platz.bestaende.length > 0).length;
+  return { plaetzeCount: zellen.length, belegt };
+}
+
+/** Gang-Nummer eines beliebigen Regals dieses Gangs, für das Breadcrumb-Label ("Gang 3"). */
+export function editorGangNummer(overlay: EditorLagerOverlay, gangId: string): number | null {
+  return overlay.regale.find((r) => r.placement.gangId === gangId)?.placement.gangNummer ?? null;
+}
+
+/** Seite (links/rechts) einer Regalreihe, für das Breadcrumb-Label. */
+export function editorReiheSeite(overlay: EditorLagerOverlay, reiheId: string): 'links' | 'rechts' | null {
+  return overlay.regale.find((r) => r.placement.reiheId === reiheId)?.placement.seite ?? null;
+}
+
+/** 1-basierter Platz eines Regals innerhalb seiner Reihe (Anordnungsreihenfolge), für das Breadcrumb-Label. */
+export function editorRegalIndex(overlay: EditorLagerOverlay, reiheId: string, regalId: string): number | null {
+  const inReihe = overlay.regale.filter((r) => r.placement.reiheId === reiheId);
+  const idx = inReihe.findIndex((r) => r.placement.regalId === regalId);
+  return idx === -1 ? null : idx + 1;
 }

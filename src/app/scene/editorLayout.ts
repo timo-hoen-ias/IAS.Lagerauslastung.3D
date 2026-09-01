@@ -7,6 +7,7 @@ const WAND_ABSTAND = 1.5;
 
 export type EditorRegalPlacement = {
   gangId: string;
+  gangNummer: number;
   reiheId: string;
   regalId: string;
   seite: 'links' | 'rechts';
@@ -14,6 +15,8 @@ export type EditorRegalPlacement = {
   position: [number, number, number];
   size: { w: number; h: number; d: number };
   ebenen: number;
+  /** Drehung der Reihe um die eigene Achse (Radiant), s. `EditorRegalreihe.rotation`. */
+  rotationY: number;
 };
 
 /**
@@ -56,6 +59,7 @@ export function layoutEditorGaenge(gaenge: EditorGang[], grundriss: Punkt[] = []
       for (const regal of reihe.regale) {
         out.push({
           gangId: gang.id,
+          gangNummer: gang.nummer,
           reiheId: reihe.id,
           regalId: regal.id,
           seite: reihe.seite,
@@ -66,6 +70,7 @@ export function layoutEditorGaenge(gaenge: EditorGang[], grundriss: Punkt[] = []
           ],
           size: { w: regal.breite, h: regal.hoehe, d: regal.tiefe },
           ebenen: regal.ebenen,
+          rotationY: ((reihe.rotation ?? 0) * Math.PI) / 180,
         });
         x += regal.breite;
       }
