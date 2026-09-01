@@ -18,7 +18,19 @@ export type EditorRegal = {
   tiefe: number;
   /** Manueller Versatz (m) ab der automatischen Gang-Position — per Drag in der 3D-Vorschau gesetzt. */
   versatz?: Punkt;
+  /**
+   * Höhe (m) je Ebene, Index 0 = unterste Ebene — überschreibt die gleichmäßige Aufteilung von
+   * `hoehe`/`ebenen` (z. B. höheres Bodenfach für Paletten). Fehlt oder passt die Länge nicht
+   * zu `ebenen`, wird gleichmäßig aufgeteilt (`ebenenHoehen()`).
+   */
+  ebenenHoehen?: number[];
 };
+
+/** Höhe je Ebene: `regal.ebenenHoehen` wenn vollständig gesetzt, sonst `hoehe` gleichmäßig auf `ebenen` verteilt. */
+export function ebenenHoehen(regal: Pick<EditorRegal, 'ebenen' | 'hoehe' | 'ebenenHoehen'>): number[] {
+  if (regal.ebenenHoehen && regal.ebenenHoehen.length === regal.ebenen) return regal.ebenenHoehen;
+  return Array(regal.ebenen).fill(regal.hoehe / Math.max(1, regal.ebenen));
+}
 
 export type EditorRegalreihe = {
   id: string;
@@ -28,6 +40,9 @@ export type EditorRegalreihe = {
   versatz?: Punkt;
   /** Drehung der ganzen Reihe um die eigene Achse (Grad, 90°-Raster) — gleicht die Auto-Anordnung an die reale Ausrichtung der Regale an. */
   rotation?: number;
+  /** Spiegelung der ganzen Reihe an der lokalen X-Achse (Spaltenrichtung) bzw. Z-Achse (Regaltiefe) — für Aufbauten, die per 90°-Drehung allein nicht auf die reale Ausrichtung passen. */
+  spiegelX?: boolean;
+  spiegelZ?: boolean;
 };
 
 /** Dreht eine Reihe um `deltaDeg` (90°-Raster), auf [0,360) normalisiert. */

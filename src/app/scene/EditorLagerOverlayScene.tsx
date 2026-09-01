@@ -7,8 +7,8 @@ import { editorGangNummer, editorReiheSeite, editorRegalIndex } from '../editorO
 import { polygonCenter, wallSegments } from './editorLayout';
 import { FLOOR, RACK_GREY, WALL_COLOR, WALL_GLASS_COLOR, stockColor } from '../colors';
 import { HOVER_COLOR } from './Cell';
-import { BASE_H, LEVEL_GAP, TOP_H } from './layout';
-import { mergeBoxes, rackParts, wallSegmentBoxes, wallSegmentGlassBoxes } from './boxes';
+import { BASE_H } from './layout';
+import { levelFloorY, mergeBoxes, rackParts, wallSegmentBoxes, wallSegmentGlassBoxes } from './boxes';
 import { setEditorSelection, useEditorSelection } from '../store';
 
 const WALL_HOEHE = 3;
@@ -108,15 +108,13 @@ function RegalOverlayBox({
   offset: { x: number; z: number };
   interactive: boolean;
 }) {
-  const { gangId, reiheId, regalId, position, size, ebenen, rotationY } = regal.placement;
+  const { gangId, reiheId, regalId, position, size, ebenen, ebenenHoehen, rotationY, spiegelX, spiegelZ } = regal.placement;
   const spalten = Math.max(1, ...regal.zellen.map((z) => z.spalte));
   const zellW = size.w / spalten;
   const ebenenN = Math.max(1, ebenen);
-  // Höhe je Ebene wie bei den per Sage geladenen Regalen (`rackFrame`/`rackParts` in boxes.ts):
-  // Sockel + Ebenen × (Zellhöhe + Zwischenraum) + Deckplatte ergibt exakt size.h.
-  const cellH = Math.max(0.05, (size.h - BASE_H - TOP_H - (ebenenN - 1) * LEVEL_GAP) / ebenenN);
+  const floorY = useMemo(() => levelFloorY(ebenenHoehen), [ebenenHoehen]);
 
-  const parts = useMemo(() => rackParts(size, ebenenN, cellH), [size.w, size.h, size.d, ebenenN, cellH]);
+  const parts = useMemo(() => rackParts(size, ebenenN, ebenenHoehen), [size.w, size.h, size.d, ebenenN, ebenenHoehen]);
   const darkGeo = useMemo(() => mergeBoxes(parts.dark), [parts]);
   const greyGeo = useMemo(() => mergeBoxes(parts.grey), [parts]);
   const topGeo = useMemo(() => mergeBoxes(parts.top), [parts]);
@@ -145,52 +143,56 @@ function RegalOverlayBox({
 
   return (
     <group position={[position[0] + offset.x, 0, position[2] + offset.z]} rotation-y={rotationY}>
-      <mesh geometry={darkGeo!} castShadow receiveShadow>
-        <meshStandardMaterial color="#262c36" roughness={0.9} />
-      </mesh>
-      <mesh geometry={greyGeo!} castShadow receiveShadow>
-        <meshStandardMaterial color={RACK_GREY} roughness={0.5} />
-      </mesh>
-      <mesh geometry={topGeo!} castShadow>
-        <meshStandardMaterial color={RACK_GREY} roughness={0.5} transparent opacity={0.45} depthWrite={false} />
-      </mesh>
+      {/* Nur die physische Regalgeometrie spiegeln — Kanten-Hervorhebung und Label-Billboard bleiben unverzerrt/lesbar. */}
+      <group scale={[spiegelX ? -1 : 1, 1, spiegelZ ? -1 : 1]}>
+        <mesh geometry={darkGeo!} castShadow receiveShadow>
+          <meshStandardMaterial color="#262c36" roughness={0.9} />
+        </mesh>
+        <mesh geometry={greyGeo!} castShadow receiveShadow>
+          <meshStandardMaterial color={RACK_GREY} roughness={0.5} />
+        </mesh>
+        <mesh geometry={topGeo!} castShadow>
+          <meshStandardMaterial color={RACK_GREY} roughness={0.5} transparent opacity={0.45} depthWrite={false} />
+        </mesh>
 
-      {regal.zellen.map((zelle) => {
-        const gesamt = zelle.platz?.bestaende.reduce((s, b) => s + b.bestand, 0) ?? 0;
-        const key = zelleKey(zelle);
-        const aktiv = key === hoverKey || key === selectedZelleKey;
-        const color = aktiv ? HOVER_COLOR : stockColor(gesamt, zelle.platz !== undefined);
-        const cy = BASE_H + (zelle.ebene - 1) * (cellH + LEVEL_GAP) + cellH / 2;
-        return (
-          <mesh
-            key={key}
-            position={[(zelle.spalte - 0.5) * zellW - size.w / 2, cy, 0]}
-            castShadow
-            receiveShadow
-            userData={{ editorOverlayId: overlay.id, editorRegalId: regalId, editorZelleKey: key }}
-            onClick={
-              interactive
-                ? (e: ThreeEvent<MouseEvent>) => {
-                    e.stopPropagation();
-                    setEditorSelection({ overlay, level: 'platz', gangId, reiheId, regalId, zelle });
-                  }
-                : undefined
-            }
-            onPointerOver={
-              interactive
-                ? (e: ThreeEvent<PointerEvent>) => {
-                    e.stopPropagation();
-                    setHoverKey(key);
-                  }
-                : undefined
-            }
-            onPointerOut={interactive ? () => setHoverKey((k) => (k === key ? null : k)) : undefined}
-          >
-            <boxGeometry args={[zellW * 0.92, cellH * 0.82, size.d * 0.94]} />
-            <meshStandardMaterial color={color} roughness={0.6} />
-          </mesh>
-        );
-      })}
+        {regal.zellen.map((zelle) => {
+          const gesamt = zelle.platz?.bestaende.reduce((s, b) => s + b.bestand, 0) ?? 0;
+          const key = zelleKey(zelle);
+          const aktiv = key === hoverKey || key === selectedZelleKey;
+          const color = aktiv ? HOVER_COLOR : stockColor(gesamt, zelle.platz !== undefined);
+          const ebeneH = ebenenHoehen[zelle.ebene - 1] ?? ebenenHoehen[0] ?? 0.5;
+          const cy = (floorY[zelle.ebene - 1] ?? BASE_H) + ebeneH / 2;
+          return (
+            <mesh
+              key={key}
+              position={[(zelle.spalte - 0.5) * zellW - size.w / 2, cy, 0]}
+              castShadow
+              receiveShadow
+              userData={{ editorOverlayId: overlay.id, editorRegalId: regalId, editorZelleKey: key }}
+              onClick={
+                interactive
+                  ? (e: ThreeEvent<MouseEvent>) => {
+                      e.stopPropagation();
+                      setEditorSelection({ overlay, level: 'platz', gangId, reiheId, regalId, zelle });
+                    }
+                  : undefined
+              }
+              onPointerOver={
+                interactive
+                  ? (e: ThreeEvent<PointerEvent>) => {
+                      e.stopPropagation();
+                      setHoverKey(key);
+                    }
+                  : undefined
+              }
+              onPointerOut={interactive ? () => setHoverKey((k) => (k === key ? null : k)) : undefined}
+            >
+              <boxGeometry args={[zellW * 0.92, ebeneH * 0.82, size.d * 0.94]} />
+              <meshStandardMaterial color={color} roughness={0.6} />
+            </mesh>
+          );
+        })}
+      </group>
 
       {regalAktiv && (
         <>

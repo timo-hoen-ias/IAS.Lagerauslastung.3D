@@ -53,7 +53,8 @@ function Rack({
   const plaetze = useMemo(() => gangPlätze(placed.ort, placed.kind, placed.gang), [placed.ort, placed.kind, placed.gang]);
   const überlastet = useMemo(() => plaetze.some((p) => platzÜberlastet(p)), [plaetze]);
 
-  const parts = useMemo(() => rackParts({ w: uW, h: uH, d: uD }, placed.levels, placed.cellH), [uW, uH, uD, placed.levels, placed.cellH]);
+  const cellHeights = useMemo(() => Array(placed.levels).fill(placed.cellH), [placed.levels, placed.cellH]);
+  const parts = useMemo(() => rackParts({ w: uW, h: uH, d: uD }, placed.levels, cellHeights), [uW, uH, uD, placed.levels, cellHeights]);
   const darkGeo = useMemo(() => mergeBoxes(parts.dark), [parts]);
   const greyGeo = useMemo(() => mergeBoxes(parts.grey), [parts]);
   const topGeo = useMemo(() => mergeBoxes(parts.top), [parts]);

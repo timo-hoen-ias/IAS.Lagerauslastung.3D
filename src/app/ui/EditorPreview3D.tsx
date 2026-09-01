@@ -55,15 +55,33 @@ function Waende({ points, hoehe }: { points: Punkt[]; hoehe: number }) {
  * im Inneren — letztere verschwinden komplett innerhalb des opaken Außenquaders und sind
  * nie sichtbar.
  */
-function RegalMesh({ size, ebenen, color }: { size: { w: number; h: number; d: number }; ebenen: number; color: string }) {
+function RegalMesh({
+  size,
+  ebenen,
+  ebenenHoehen,
+  color,
+}: {
+  size: { w: number; h: number; d: number };
+  ebenen: number;
+  ebenenHoehen: number[];
+  color: string;
+}) {
   const edgeGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(size.w, size.h, size.d)), [size.w, size.h, size.d]);
   useEffect(() => () => edgeGeo.dispose(), [edgeGeo]);
-  const zellH = size.h / Math.max(1, ebenen);
+  const levels = useMemo(() => {
+    let y = 0;
+    return Array.from({ length: Math.max(1, ebenen) }, (_, i) => {
+      const h = ebenenHoehen[i] ?? size.h / Math.max(1, ebenen);
+      const cy = y + h / 2;
+      y += h;
+      return { cy, h };
+    });
+  }, [ebenen, ebenenHoehen, size.h]);
   return (
     <>
-      {Array.from({ length: Math.max(1, ebenen) }, (_, i) => (
-        <mesh key={i} position={[0, zellH * (i + 0.5), 0]} castShadow receiveShadow>
-          <boxGeometry args={[size.w * 0.98, zellH * 0.8, size.d * 0.98]} />
+      {levels.map((lvl, i) => (
+        <mesh key={i} position={[0, lvl.cy, 0]} castShadow receiveShadow>
+          <boxGeometry args={[size.w * 0.98, lvl.h * 0.8, size.d * 0.98]} />
           <meshStandardMaterial color={color} roughness={0.6} />
         </mesh>
       ))}
@@ -97,8 +115,8 @@ function RegalBox({
   onMove: (regalId: string, versatz: Punkt) => void;
   setOrbitEnabled: (enabled: boolean) => void;
 }) {
-  const { rotationY } = placement;
-  const { position, size, ebenen } = placement;
+  const { rotationY, spiegelX, spiegelZ } = placement;
+  const { position, size, ebenen, ebenenHoehen } = placement;
   const basePosition = { x: position[0] - bisherigerVersatz.x, z: position[2] - bisherigerVersatz.z };
   const { gl } = useThree();
   const groupRef = useRef<THREE.Group>(null);
@@ -143,8 +161,8 @@ function RegalBox({
       onPointerOver={() => (gl.domElement.style.cursor = 'grab')}
       onPointerOut={() => (gl.domElement.style.cursor = 'auto')}
     >
-      <group rotation-y={rotationY}>
-        <RegalMesh size={size} ebenen={ebenen} color={dragging ? ACCENT : RACK_GREY} />
+      <group rotation-y={rotationY} scale={[spiegelX ? -1 : 1, 1, spiegelZ ? -1 : 1]}>
+        <RegalMesh size={size} ebenen={ebenen} ebenenHoehen={ebenenHoehen} color={dragging ? ACCENT : RACK_GREY} />
       </group>
       <RegalLabel size={size} label={label} />
     </group>
@@ -214,8 +232,8 @@ function ReiheGroup({
     >
       {placements.map((p) => (
         <group key={p.regalId} position={[p.position[0] - bisherigerVersatz.x, 0, p.position[2] - bisherigerVersatz.z]}>
-          <group rotation-y={p.rotationY}>
-            <RegalMesh size={p.size} ebenen={p.ebenen} color={dragging ? ACCENT : RACK_GREY} />
+          <group rotation-y={p.rotationY} scale={[p.spiegelX ? -1 : 1, 1, p.spiegelZ ? -1 : 1]}>
+            <RegalMesh size={p.size} ebenen={p.ebenen} ebenenHoehen={p.ebenenHoehen} color={dragging ? ACCENT : RACK_GREY} />
           </group>
           <RegalLabel size={p.size} label={labelById.get(p.regalId) ?? ''} />
         </group>

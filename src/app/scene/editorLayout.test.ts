@@ -39,6 +39,33 @@ describe('layoutEditorGaenge', () => {
     expect(ohneRotation[0]!.rotationY).toBe(0);
   });
 
+  it('reicht spiegelX/spiegelZ der Reihe durch (Default false)', () => {
+    const gaenge: EditorGang[] = [
+      { id: 'g1', nummer: 1, breite: 3, reihen: [{ id: 'r1', seite: 'links', regale: [regal('a', 2, 2, 1)], spiegelX: true }] },
+      { id: 'g2', nummer: 2, breite: 3, reihen: [{ id: 'r2', seite: 'links', regale: [regal('b', 2, 2, 1)] }] },
+    ];
+    const placements = layoutEditorGaenge(gaenge);
+    const a = placements.find((p) => p.regalId === 'a')!;
+    const b = placements.find((p) => p.regalId === 'b')!;
+    expect(a.spiegelX).toBe(true);
+    expect(a.spiegelZ).toBe(false);
+    expect(b.spiegelX).toBe(false);
+    expect(b.spiegelZ).toBe(false);
+  });
+
+  it('reicht individuelle Ebenenhöhen durch, sonst gleichmäßige Aufteilung', () => {
+    const gaenge: EditorGang[] = [
+      {
+        id: 'g1',
+        nummer: 1,
+        breite: 3,
+        reihen: [{ id: 'r1', seite: 'links', regale: [{ ...regal('a', 2, 3, 1, 3), ebenenHoehen: [1.5, 0.8, 0.7] }] }],
+      },
+    ];
+    const placements = layoutEditorGaenge(gaenge);
+    expect(placements[0]!.ebenenHoehen).toEqual([1.5, 0.8, 0.7]);
+  });
+
   it('reicht die Gang-Nummer (für die Ebenen-Anzeige im Inspector) an jedes Regal der Placements durch', () => {
     const gaenge: EditorGang[] = [
       { id: 'g1', nummer: 3, breite: 3, reihen: [{ id: 'r1', seite: 'links', regale: [regal('a', 2, 2, 1)] }] },

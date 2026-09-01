@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveEditorPlaetze, rotateReihe, type EditorGang } from './editor';
+import { deriveEditorPlaetze, ebenenHoehen, rotateReihe, type EditorGang } from './editor';
 
 /** Baut ein Regal-Kurzform-Objekt für die Tests. */
 function regal(id: string, ebenen: number, plaetzeProEbene: number) {
@@ -85,5 +85,19 @@ describe('rotateReihe', () => {
     expect(rotateReihe(0, -90)).toBe(270);
     expect(rotateReihe(270, 90)).toBe(0);
     expect(rotateReihe(270, 180)).toBe(90);
+  });
+});
+
+describe('ebenenHoehen', () => {
+  it('teilt hoehe gleichmäßig auf, wenn keine eigenen Ebenenhöhen gesetzt sind', () => {
+    expect(ebenenHoehen({ ebenen: 4, hoehe: 2, ebenenHoehen: undefined })).toEqual([0.5, 0.5, 0.5, 0.5]);
+  });
+
+  it('nutzt gesetzte Ebenenhöhen, wenn die Länge zu ebenen passt', () => {
+    expect(ebenenHoehen({ ebenen: 3, hoehe: 3, ebenenHoehen: [1.5, 0.8, 0.7] })).toEqual([1.5, 0.8, 0.7]);
+  });
+
+  it('fällt auf gleichmäßige Aufteilung zurück, wenn die Länge nicht zu ebenen passt (z. B. nach Ändern von ebenen)', () => {
+    expect(ebenenHoehen({ ebenen: 2, hoehe: 4, ebenenHoehen: [1, 1, 1] })).toEqual([2, 2]);
   });
 });

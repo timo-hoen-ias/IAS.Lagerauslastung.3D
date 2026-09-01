@@ -1,4 +1,4 @@
-import type { EditorGang, Punkt } from '../../shared/editor';
+import { ebenenHoehen as regalEbenenHoehen, type EditorGang, type Punkt } from '../../shared/editor';
 
 /** Abstand (m) zwischen zwei aufeinanderfolgenden Gängen. */
 const GANG_ABSTAND = 3;
@@ -15,8 +15,13 @@ export type EditorRegalPlacement = {
   position: [number, number, number];
   size: { w: number; h: number; d: number };
   ebenen: number;
+  /** Höhe (m) je Ebene, s. `ebenenHoehen()` in shared/editor.ts. */
+  ebenenHoehen: number[];
   /** Drehung der Reihe um die eigene Achse (Radiant), s. `EditorRegalreihe.rotation`. */
   rotationY: number;
+  /** Spiegelung der Reihe, s. `EditorRegalreihe.spiegelX/spiegelZ`. */
+  spiegelX: boolean;
+  spiegelZ: boolean;
 };
 
 /**
@@ -70,7 +75,10 @@ export function layoutEditorGaenge(gaenge: EditorGang[], grundriss: Punkt[] = []
           ],
           size: { w: regal.breite, h: regal.hoehe, d: regal.tiefe },
           ebenen: regal.ebenen,
+          ebenenHoehen: regalEbenenHoehen(regal),
           rotationY: ((reihe.rotation ?? 0) * Math.PI) / 180,
+          spiegelX: reihe.spiegelX ?? false,
+          spiegelZ: reihe.spiegelZ ?? false,
         });
         x += regal.breite;
       }

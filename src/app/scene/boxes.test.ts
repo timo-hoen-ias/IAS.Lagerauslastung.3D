@@ -24,7 +24,7 @@ describe('mergeBoxes', () => {
 });
 
 describe('rackParts', () => {
-  const parts = rackParts({ w: 1, h: 3.5, d: 5 }, 3, 0.6);
+  const parts = rackParts({ w: 1, h: 3.5, d: 5 }, 3, [0.6, 0.6, 0.6]);
 
   it('Sockel + ein Boden je Ebene', () => {
     expect(parts.dark.length).toBe(4); // 1 Sockel + 3 Böden
@@ -47,6 +47,13 @@ describe('rackParts', () => {
     for (let iy = 0; iy < 3; iy++) {
       expect(parts.dark[iy + 1]!.pos[1]).toBeCloseTo(BASE_H + iy * (0.6 + LEVEL_GAP) - 0.02, 6);
     }
+  });
+
+  it('erlaubt unterschiedliche Höhen je Ebene (z. B. höheres Bodenfach)', () => {
+    const variabel = rackParts({ w: 1, h: 3.5, d: 5 }, 3, [1.2, 0.5, 0.5]);
+    expect(variabel.dark[1]!.pos[1]).toBeCloseTo(BASE_H - 0.02, 6);
+    expect(variabel.dark[2]!.pos[1]).toBeCloseTo(BASE_H + 1.2 + LEVEL_GAP - 0.02, 6);
+    expect(variabel.dark[3]!.pos[1]).toBeCloseTo(BASE_H + 1.2 + 0.5 + 2 * LEVEL_GAP - 0.02, 6);
   });
 });
 

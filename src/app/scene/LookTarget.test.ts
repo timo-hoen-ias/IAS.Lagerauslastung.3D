@@ -146,7 +146,20 @@ function editorOverlay(id: string): EditorLagerOverlay {
     grundriss: [],
     regale: [
       {
-        placement: { gangId: 'g1', gangNummer: 1, reiheId: 'r1', regalId: 'reg1', seite: 'links', position: [0, 0, 0], size: { w: 1, h: 1, d: 1 }, ebenen: 1, rotationY: 0 },
+        placement: {
+          gangId: 'g1',
+          gangNummer: 1,
+          reiheId: 'r1',
+          regalId: 'reg1',
+          seite: 'links',
+          position: [0, 0, 0],
+          size: { w: 1, h: 1, d: 1 },
+          ebenen: 1,
+          ebenenHoehen: [1],
+          rotationY: 0,
+          spiegelX: false,
+          spiegelZ: false,
+        },
         zellen: [{ ebene: 1, spalte: 1 }],
       },
     ],

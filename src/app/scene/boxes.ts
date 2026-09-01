@@ -33,14 +33,22 @@ export type RackParts = {
   top: BoxDesc[]; // Abdeckplatte (transparent)
 };
 
-/** Regalrahmen als Box-Baupläne; ersetzt pro-Teil-Meshes durch 3 merged Draw-Calls. */
-export function rackParts(size: { w: number; h: number; d: number }, levels: number, cellH: number): RackParts {
+/** Boden-Y je Ebene (Index 0 = unterste), aus Sockelhöhe + kumulierten Ebenenhöhen + Zwischenraum. */
+export function levelFloorY(cellHeights: number[]): number[] {
+  const out: number[] = [];
+  let y = BASE_H;
+  for (const h of cellHeights) {
+    out.push(y);
+    y += h + LEVEL_GAP;
+  }
+  return out;
+}
+
+/** Regalrahmen als Box-Baupläne; ersetzt pro-Teil-Meshes durch 3 merged Draw-Calls. `cellHeights` je Ebene (Index 0 = unterste). */
+export function rackParts(size: { w: number; h: number; d: number }, levels: number, cellHeights: number[]): RackParts {
   const dark: BoxDesc[] = [{ pos: [0, 0.04, 0], size: [size.w + 0.3, 0.08, size.d + 0.3] }];
-  for (let iy = 0; iy < levels; iy++) {
-    dark.push({
-      pos: [0, BASE_H + iy * (cellH + LEVEL_GAP) - 0.02, 0],
-      size: [size.w + 0.1, 0.04, size.d + 0.1],
-    });
+  for (const floorY of levelFloorY(cellHeights.slice(0, levels))) {
+    dark.push({ pos: [0, floorY - 0.02, 0], size: [size.w + 0.1, 0.04, size.d + 0.1] });
   }
   const frame = rackFrame(size);
   const corners: [number, number][] = [

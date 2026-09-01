@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Plus, RotateCw, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, FlipHorizontal, FlipVertical, Plus, RotateCw, Trash2, X } from 'lucide-react';
 import type { EditorGang, EditorLager, EditorPlatz, EditorRegal, EditorRegalreihe, Punkt } from '../../shared/editor';
-import { deriveEditorPlaetze, rotateReihe } from '../../shared/editor';
+import { deriveEditorPlaetze, ebenenHoehen, rotateReihe } from '../../shared/editor';
 import DecimalInput from './DecimalInput';
 import GrundrissEditor from './GrundrissEditor';
 import { RECHTECK_START } from './grundriss';
@@ -61,6 +61,8 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
   const [previewMode, setPreviewMode] = useState<PreviewMode>('regal');
   const [busy, setBusy] = useState<'vorschau' | 'speichern' | 'laden' | null>(null);
   const [status, setStatus] = useState<{ art: 'ok' | 'fehler'; text: string } | null>(null);
+  /** Regale, deren Ebenenhöhen-Editor gerade aufgeklappt ist (nur UI-Zustand, nicht persistiert). */
+  const [ebenenOffen, setEbenenOffen] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open || db === 'perf') return;
@@ -272,7 +274,34 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                             {reihe.rotation ?? 0}°
                           </span>
                           <button
+                            className={`${iconBtnClass} ${reihe.spiegelX ? 'border-accent/40 text-accent' : ''}`}
+                            title="Reihe an der Spaltenrichtung spiegeln — für Aufbauten, die per Drehung allein nicht passen"
+                            onClick={() =>
+                              setGaenge((gs) =>
+                                withGang(gs, gang.id, (g) =>
+                                  withReihe(g, reihe.id, (r) => ({ ...r, spiegelX: !r.spiegelX })),
+                                ),
+                              )
+                            }
+                          >
+                            <FlipHorizontal size={13} />
+                          </button>
+                          <button
+                            className={`${iconBtnClass} ${reihe.spiegelZ ? 'border-accent/40 text-accent' : ''}`}
+                            title="Reihe an der Regaltiefe spiegeln — für Aufbauten, die per Drehung allein nicht passen"
+                            onClick={() =>
+                              setGaenge((gs) =>
+                                withGang(gs, gang.id, (g) =>
+                                  withReihe(g, reihe.id, (r) => ({ ...r, spiegelZ: !r.spiegelZ })),
+                                ),
+                              )
+                            }
+                          >
+                            <FlipVertical size={13} />
+                          </button>
+                          <button
                             className={iconBtnClass}
+                            title="Regal hinzufügen"
                             onClick={() =>
                               setGaenge((gs) =>
                                 withGang(gs, gang.id, (g) =>
@@ -322,10 +351,60 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                               }}
                             />
                             <span className="ml-auto" title="Breite × Höhe × Tiefe (m)">
-                              {regal.breite}×{regal.hoehe}×{regal.tiefe} m
+                              <DecimalInput
+                                className={`${textInputClass} w-14 text-right`}
+                                value={regal.breite}
+                                onCommit={(v) =>
+                                  setGaenge((gs) =>
+                                    withGang(gs, gang.id, (g) =>
+                                      withReihe(g, reihe.id, (r) => withRegal(r, regal.id, (x) => ({ ...x, breite: v }))),
+                                    ),
+                                  )
+                                }
+                              />
                             </span>
+                            ×
+                            <DecimalInput
+                              className={`${textInputClass} w-14 text-right`}
+                              value={regal.hoehe}
+                              onCommit={(v) =>
+                                setGaenge((gs) =>
+                                  withGang(gs, gang.id, (g) =>
+                                    withReihe(g, reihe.id, (r) => withRegal(r, regal.id, (x) => ({ ...x, hoehe: v }))),
+                                  ),
+                                )
+                              }
+                            />
+                            ×
+                            <DecimalInput
+                              className={`${textInputClass} w-14 text-right`}
+                              value={regal.tiefe}
+                              onCommit={(v) =>
+                                setGaenge((gs) =>
+                                  withGang(gs, gang.id, (g) =>
+                                    withReihe(g, reihe.id, (r) => withRegal(r, regal.id, (x) => ({ ...x, tiefe: v }))),
+                                  ),
+                                )
+                              }
+                            />
+                            <span className="text-ink-faint">m</span>
                             <button
                               className={iconBtnClass}
+                              title="Höhe je Ebene einzeln festlegen"
+                              onClick={() =>
+                                setEbenenOffen((s) => {
+                                  const next = new Set(s);
+                                  if (next.has(regal.id)) next.delete(regal.id);
+                                  else next.add(regal.id);
+                                  return next;
+                                })
+                              }
+                            >
+                              {ebenenOffen.has(regal.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                            </button>
+                            <button
+                              className={iconBtnClass}
+                              title="Regal entfernen"
                               onClick={() =>
                                 setGaenge((gs) =>
                                   withGang(gs, gang.id, (g) =>
@@ -341,6 +420,36 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                             </button>
                           </div>
                         ))}
+                        {reihe.regale.map(
+                          (regal) =>
+                            ebenenOffen.has(regal.id) && (
+                              <div key={`${regal.id}-ebenen`} className="ml-5 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-faint">
+                                <span title="Höhe je Ebene, unten beginnend">Ebenenhöhen:</span>
+                                {ebenenHoehen(regal).map((h, ebeneIdx) => (
+                                  <label key={ebeneIdx} className="flex items-center gap-1">
+                                    <span className="font-mono">{ebeneIdx + 1}.</span>
+                                    <DecimalInput
+                                      className={`${textInputClass} w-14 text-right`}
+                                      value={h}
+                                      onCommit={(v) =>
+                                        setGaenge((gs) =>
+                                          withGang(gs, gang.id, (g) =>
+                                            withReihe(g, reihe.id, (r) =>
+                                              withRegal(r, regal.id, (x) => {
+                                                const hoehen = [...ebenenHoehen(x)];
+                                                hoehen[ebeneIdx] = v;
+                                                return { ...x, ebenenHoehen: hoehen };
+                                              }),
+                                            ),
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                ))}
+                              </div>
+                            ),
+                        )}
                       </div>
                     </div>
                   ))}
