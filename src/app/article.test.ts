@@ -25,6 +25,7 @@ const bestand = (artikelnummer: string, bezeichnung1: string, bestand: number): 
   bestand,
   verfuegbarkeit: bestand,
   gewicht: 0,
+  einheit: '',
 });
 
 const platz = (id: number, bestaende: Lagerbestand[]): Lagerplatz => ({
@@ -251,8 +252,8 @@ describe('groupRowsByArtikel', () => {
     const rows = rowsFromPlaetze([platz(1, [bestand('X1', 'Schraube', 10)]), platz(2, [bestand('X1', 'Schraube', 5)]), platz(3, [bestand('X2', 'Mutter', 7)])]);
     const grouped = groupRowsByArtikel(rows);
     expect(grouped).toEqual([
-      { artikel: 'X1', bezeichnung: 'Schraube', bestand: 15, plaetze: 2 },
-      { artikel: 'X2', bezeichnung: 'Mutter', bestand: 7, plaetze: 1 },
+      { artikel: 'X1', bezeichnung: 'Schraube', bestand: 15, plaetze: 2, einheit: '' },
+      { artikel: 'X2', bezeichnung: 'Mutter', bestand: 7, plaetze: 1, einheit: '' },
     ]);
   });
 

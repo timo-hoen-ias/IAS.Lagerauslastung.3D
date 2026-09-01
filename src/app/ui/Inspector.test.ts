@@ -18,7 +18,7 @@ const platz = (platzId: number, kurz: string, bestaende: { artikel: string; best
   platzbezeichnung: kurz,
   masse: { hoehe: 0, breite: 0, laenge: 0 },
   maxGewicht: 0,
-  bestaende: bestaende.map((b) => ({ artikelnummer: b.artikel, bezeichnung1: `Art ${b.artikel}`, matchcode: '', bestand: b.bestand, verfuegbarkeit: b.bestand, gewicht: 0 })),
+  bestaende: bestaende.map((b) => ({ artikelnummer: b.artikel, bezeichnung1: `Art ${b.artikel}`, matchcode: '', bestand: b.bestand, verfuegbarkeit: b.bestand, gewicht: 0, einheit: '' })),
 });
 
 describe('ortRows', () => {

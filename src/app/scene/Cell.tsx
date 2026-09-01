@@ -1,8 +1,9 @@
 import type { Lagerbestand, Lagerplatz } from '../../shared/types';
+import type { StockAnzeigeConfig } from '../../shared/anzeige';
 import { stockColor } from '../colors';
 import { cellLocalPosition, cellSize, type RackPlacement } from './layout';
 
-export type KistenAnteil = { artikel: string; matchcode: string; bestand: number; anteil: number };
+export type KistenAnteil = { artikel: string; matchcode: string; bestand: number; anteil: number; einheit: string };
 
 /** Farben für Artikel-Kisten; pro Kiste indexbasiert, immer unterschiedlich. */
 const KISTEN_FARBEN = [
@@ -28,12 +29,13 @@ export function bestandAnteile(bestaende: Lagerbestand[], maxKisten = 6): Kisten
     matchcode: b.matchcode || b.bezeichnung1,
     bestand: b.bestand,
     anteil: b.bestand / gesamt,
+    einheit: b.einheit,
   }));
   if (anteile.length <= maxKisten) return anteile;
   const top = anteile.slice(0, maxKisten - 1);
   const rest = anteile.slice(maxKisten - 1);
   const restSumme = rest.reduce((s, a) => s + a.anteil, 0);
-  return [...top, { artikel: '…', matchcode: '', bestand: rest.reduce((s, a) => s + a.bestand, 0), anteil: restSumme }];
+  return [...top, { artikel: '…', matchcode: '', bestand: rest.reduce((s, a) => s + a.bestand, 0), anteil: restSumme, einheit: top[0]?.einheit ?? '' }];
 }
 
 /** Bestand kompakt gerundet: 42.333 → '42.33', 42.9 → '42.9', 250 → '250'. */
@@ -92,6 +94,7 @@ export const HOVER_COLOR = '#7ec8ff';
 export function cellSegments(
   plaetze: Lagerplatz[],
   rack: Pick<RackPlacement, 'cols' | 'levels' | 'depth' | 'flat' | 'cellH' | 'kind' | 'gang'>,
+  anzeige: StockAnzeigeConfig,
 ): CellSegments {
   const segs: CellSeg[] = [];
   const labels: CellLabel[] = [];
@@ -123,13 +126,20 @@ export function cellSegments(
     const leer = platz.bestaende.length === 0;
 
     if (leer) {
-      segs.push({ index: index++, platzId: platz.platzId, pos: [cx, cy, cz], size: [box.w, box.h, box.d], color: stockColor(0, false), empty: true });
+      segs.push({ index: index++, platzId: platz.platzId, pos: [cx, cy, cz], size: [box.w, box.h, box.d], color: stockColor(0, false, anzeige), empty: true });
       continue;
     }
     if (anteile.length <= 1) {
       const a = anteile[0];
       const total = a?.bestand ?? 0;
-      segs.push({ index: index++, platzId: platz.platzId, pos: [cx, cy, cz], size: [box.w, box.h, box.d], color: stockColor(total, true), empty: false });
+      segs.push({
+        index: index++,
+        platzId: platz.platzId,
+        pos: [cx, cy, cz],
+        size: [box.w, box.h, box.d],
+        color: stockColor(total, true, anzeige, a?.einheit),
+        empty: false,
+      });
       const label = boxLabel(a?.artikel ?? '', a?.matchcode ?? '', total);
       addLabel(platz.platzId, box, [cx, cy, cz], box.w / 2 + 0.02, 1, label);
       addLabel(platz.platzId, box, [cx, cy, cz], -box.w / 2 - 0.02, -1, label);

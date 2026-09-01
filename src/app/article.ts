@@ -48,7 +48,7 @@ export function filterArtikel(liste: ArtikelRef[], query: string, limit = 20): A
   return treffer.slice(0, limit).map((t) => t.r);
 }
 
-export type ArtikelPlatz = { ort: Lagerort; platz: Lagerplatz; bestand: number };
+export type ArtikelPlatz = { ort: Lagerort; platz: Lagerplatz; bestand: number; einheit: string };
 
 /** Alle Lagerplätze, auf denen ein Artikel liegt, sortiert nach Lagerort und Platz. */
 export function artikelLagerplätze(data: LagerDaten, artikelnummer: string): ArtikelPlatz[] {
@@ -56,7 +56,7 @@ export function artikelLagerplätze(data: LagerDaten, artikelnummer: string): Ar
   for (const ort of data.lagerorte) {
     for (const p of ort.plaetze) {
       const b = p.bestaende.find((b) => b.artikelnummer === artikelnummer);
-      if (b) out.push({ ort, platz: p, bestand: b.bestand });
+      if (b) out.push({ ort, platz: p, bestand: b.bestand, einheit: b.einheit });
     }
   }
   out.sort((a, b) => a.ort.lagerkennung.localeCompare(b.ort.lagerkennung, 'de') || a.platz.platzId - b.platz.platzId);
@@ -148,7 +148,7 @@ export function fmtMenge(menge: number): string {
 
 // ---- Bestandszeilen (Platz × Artikel) für Inspector-Tabellen ---------------
 
-export type OrtRow = { platzId: number; platz: string; artikel: string; bezeichnung: string; bestand: number };
+export type OrtRow = { platzId: number; platz: string; artikel: string; bezeichnung: string; bestand: number; einheit: string };
 
 /** Zerlegt eine beliebige Platzmenge (Regal/Reihe/Gang/Lager) in Platz×Artikel-Zeilen für die Bestandstabelle. */
 export function rowsFromPlaetze(plaetze: Lagerplatz[]): OrtRow[] {
@@ -156,14 +156,21 @@ export function rowsFromPlaetze(plaetze: Lagerplatz[]): OrtRow[] {
   for (const p of plaetze) {
     if (p.bestaende.length === 0) continue;
     for (const b of p.bestaende) {
-      rows.push({ platzId: p.platzId, platz: p.kurz || `#${p.platzId}`, artikel: b.artikelnummer, bezeichnung: b.bezeichnung1, bestand: b.bestand });
+      rows.push({
+        platzId: p.platzId,
+        platz: p.kurz || `#${p.platzId}`,
+        artikel: b.artikelnummer,
+        bezeichnung: b.bezeichnung1,
+        bestand: b.bestand,
+        einheit: b.einheit,
+      });
     }
   }
   rows.sort((a, b) => a.platzId - b.platzId || a.artikel.localeCompare(b.artikel, 'de'));
   return rows;
 }
 
-export type ArtikelGroupRow = { artikel: string; bezeichnung: string; bestand: number; plaetze: number };
+export type ArtikelGroupRow = { artikel: string; bezeichnung: string; bestand: number; plaetze: number; einheit: string };
 
 /** Gruppiert Bestandszeilen nach Artikelnummer (Gesamtbestand + Anzahl Plätze) statt nach Platz. */
 export function groupRowsByArtikel(rows: OrtRow[]): ArtikelGroupRow[] {
@@ -174,7 +181,7 @@ export function groupRowsByArtikel(rows: OrtRow[]): ArtikelGroupRow[] {
       e.bestand += r.bestand;
       e.plaetze += 1;
     } else {
-      map.set(r.artikel, { artikel: r.artikel, bezeichnung: r.bezeichnung, bestand: r.bestand, plaetze: 1 });
+      map.set(r.artikel, { artikel: r.artikel, bezeichnung: r.bezeichnung, bestand: r.bestand, plaetze: 1, einheit: r.einheit });
     }
   }
   return [...map.values()].sort((a, b) => a.artikel.localeCompare(b.artikel, 'de'));

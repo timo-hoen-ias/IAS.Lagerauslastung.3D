@@ -4,6 +4,7 @@ import type { LagerDaten } from '../shared/types';
 import type { EditorLager } from '../shared/editor';
 import {
   getTransform,
+  loadStockAnzeigeConfig,
   setSelectedArticle,
   setTransform,
   useEffectiveRacks,
@@ -125,6 +126,11 @@ export default function App() {
   }, [db, mandant]);
 
   useEffect(() => startLiveBuchungen(), []);
+
+  useEffect(() => {
+    if (data == null) return;
+    loadStockAnzeigeConfig(db, data.mandant).catch(() => undefined);
+  }, [db, data?.mandant]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

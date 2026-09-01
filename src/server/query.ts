@@ -108,6 +108,7 @@ export function attachBestaende(data: LagerDaten, rows: Record<string, unknown>[
         bestand: 0,
         verfuegbarkeit: num(r.Verfuegbarkeit),
         gewicht: bestandGewicht(r),
+        einheit: str(r.Lagermengeneinheit),
       };
       artikel.set(artNr, eintrag);
       platz.bestaende.push(eintrag);

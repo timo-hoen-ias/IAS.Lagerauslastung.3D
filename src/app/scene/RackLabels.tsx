@@ -4,6 +4,7 @@ import { Text } from '@react-three/drei';
 import type { Lagerplatz } from '../../shared/types';
 import { cellSegments } from './Cell';
 import type { PlacedRack } from './transform';
+import { useStockAnzeigeConfig } from '../store';
 
 export const LABEL_HIDE = 18;
 
@@ -56,7 +57,8 @@ export function LodGroup({
 
 /** Artikel-Labels aller Zellen eines Regals, nur in der Nähe sichtbar. */
 export default function RackLabels({ placed, plaetze }: { placed: PlacedRack; plaetze: Lagerplatz[] }) {
-  const { labels } = useMemo(() => cellSegments(plaetze, placed), [plaetze, placed]);
+  const anzeige = useStockAnzeigeConfig();
+  const { labels } = useMemo(() => cellSegments(plaetze, placed, anzeige), [plaetze, placed, anzeige]);
   return (
     <LodGroup origin={placed.position} hideDist={LABEL_HIDE}>
       {labels.map((l) => (

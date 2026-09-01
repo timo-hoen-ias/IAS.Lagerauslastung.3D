@@ -23,12 +23,8 @@ export function technikLabel(technik: string): string {
   return dim ? `Lagerart (${dim}D)` : technik;
 }
 
-export function stockColor(total: number, hasStock: boolean): string {
-  if (!hasStock || total <= 0) return '#5d6673';
-  if (total < 100) return '#27ae60';
-  if (total < 500) return '#f1c40f';
-  return '#e74c3c';
-}
+/** Bestandsfarbe nach der konfigurierbaren Anzeige (Standard/Schwellenwert, s. `shared/anzeige.ts` und `useStockAnzeigeConfig()`). */
+export { resolveStockColor as stockColor } from '../shared/anzeige';
 
 export const RACK_GREY = '#8f8f8f';
 /** Hallenwände (Sage- und Editor-Lager gemeinsam, s. Walls.tsx/EditorLagerOverlayScene.tsx). */

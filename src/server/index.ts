@@ -5,13 +5,17 @@ import { lagerMitPerfFallback } from './fallback';
 import { BUCHUNGEN_TOPIC, BuchungsRing, parseBuchung, publishBuchung } from './buchungen';
 import { poolFor } from './db';
 import { createLager, getLager, listLager, matchSage, updateLager } from './editorStore';
+import { getAnzeigeConfig, saveAnzeigeConfig } from './anzeigeStore';
 import type { LagerDaten } from '../shared/types';
 import { deriveEditorPlaetze, type EditorLager } from '../shared/editor';
+import { DEFAULT_STOCK_ANZEIGE, normalizeStockAnzeige, type StockAnzeigeConfig } from '../shared/anzeige';
 
 const PERF_ID = 'perf';
 const perfOrte = () => Number(process.env.PERF_ORTE ?? 100);
 const perfSeed = () => Number(process.env.PERF_SEED ?? 42);
 const ring = new BuchungsRing();
+/** Anzeige-Konfiguration für das generierte Perf-Lager (keine echte DB zum Persistieren). */
+const perfAnzeige = new Map<number, StockAnzeigeConfig>();
 
 async function mandanten(c: DbConnection): Promise<number[]> {
   const p = await poolFor(c);
@@ -87,6 +91,35 @@ async function handleEditorVorschau(req: Request, url: URL): Promise<Response> {
   }
 }
 
+async function handleAnzeige(req: Request, url: URL): Promise<Response> {
+  const db = url.searchParams.get('db') ?? '';
+  const mandantRaw = url.searchParams.get('mandant');
+  const mandant = mandantRaw ? Number(mandantRaw) : NaN;
+  if (!Number.isFinite(mandant)) return Response.json({ error: 'mandant fehlt' }, { status: 400 });
+  try {
+    if (db === PERF_ID) {
+      if (req.method === 'GET') return Response.json(perfAnzeige.get(mandant) ?? DEFAULT_STOCK_ANZEIGE);
+      if (req.method === 'PUT') {
+        perfAnzeige.set(mandant, normalizeStockAnzeige(await req.json()));
+        return new Response(null, { status: 204 });
+      }
+      return new Response('Not Found', { status: 404 });
+    }
+    const c = connectionFromQuery(url);
+    if (c instanceof Response) return c;
+    const pool = await poolFor(c);
+    if (req.method === 'GET') return Response.json(await getAnzeigeConfig(pool, mandant));
+    if (req.method === 'PUT') {
+      await saveAnzeigeConfig(pool, mandant, normalizeStockAnzeige(await req.json()));
+      return new Response(null, { status: 204 });
+    }
+    return new Response('Not Found', { status: 404 });
+  } catch (err) {
+    console.error('[api/anzeige]', err);
+    return Response.json({ error: String((err as Error).message) }, { status: 500 });
+  }
+}
+
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 3001),
   async fetch(req, srv) {
@@ -146,6 +179,9 @@ const server = Bun.serve({
     }
     if (req.method === 'POST' && url.pathname === '/api/editor/vorschau') {
       return handleEditorVorschau(req, url);
+    }
+    if (url.pathname === '/api/anzeige') {
+      return handleAnzeige(req, url);
     }
     return new Response('Not Found', { status: 404 });
   },

@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import type { BuchungEvent, Lagerort, Lagerplatz } from '../shared/types';
+import { DEFAULT_STOCK_ANZEIGE, type StockAnzeigeConfig } from '../shared/anzeige';
 import {
   applyTransform,
   clampScale,
@@ -501,4 +502,46 @@ export function useHiddenLagerkennungen(): Set<string> {
     () => hiddenLager,
     () => hiddenLager,
   );
+}
+
+// ---- Bestands-Anzeige-Konfiguration (server-persistiert je Mandant, s. anzeigeStore.ts) ---
+
+let stockAnzeige: StockAnzeigeConfig = DEFAULT_STOCK_ANZEIGE;
+const stockAnzeigeListeners = new Set<() => void>();
+
+function setStockAnzeigeConfig(config: StockAnzeigeConfig): void {
+  stockAnzeige = config;
+  for (const l of stockAnzeigeListeners) l();
+}
+
+export function useStockAnzeigeConfig(): StockAnzeigeConfig {
+  return useSyncExternalStore(
+    (cb) => {
+      stockAnzeigeListeners.add(cb);
+      return () => stockAnzeigeListeners.delete(cb);
+    },
+    () => stockAnzeige,
+    () => stockAnzeige,
+  );
+}
+
+/** Lädt die Anzeige-Konfiguration für Mandant/DB vom Server; bei Fehlern bleibt der bisherige Stand (Default beim ersten Laden). */
+export async function loadStockAnzeigeConfig(db: string, mandant: number): Promise<void> {
+  try {
+    const r = await fetch(`/api/anzeige?db=${db}&mandant=${mandant}`);
+    if (!r.ok) return;
+    setStockAnzeigeConfig((await r.json()) as StockAnzeigeConfig);
+  } catch {
+    /* Backend nicht erreichbar – letzter Stand/Default bleibt aktiv */
+  }
+}
+
+/** Speichert die Anzeige-Konfiguration serverseitig und übernimmt sie sofort lokal. */
+export async function saveStockAnzeigeConfig(db: string, mandant: number, config: StockAnzeigeConfig): Promise<void> {
+  setStockAnzeigeConfig(config);
+  await fetch(`/api/anzeige?db=${db}&mandant=${mandant}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
 }

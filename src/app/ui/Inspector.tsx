@@ -13,6 +13,7 @@ import {
   useHiddenLagerkennungen,
   useSelectedArticle,
   useSelection,
+  useStockAnzeigeConfig,
   useVisibleEditorLagerIds,
   type EditorSelection,
   type Selection,
@@ -396,6 +397,7 @@ function EditorLeerePlatzPanel({ zelle }: { zelle: EditorZelleOverlay }) {
 }
 
 function ArtikelTabelle({ rows }: { rows: ArtikelGroupRow[] }) {
+  const anzeige = useStockAnzeigeConfig();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className={TABLE_HEADER}>
@@ -411,7 +413,7 @@ function ArtikelTabelle({ rows }: { rows: ArtikelGroupRow[] }) {
             <span className="w-16 shrink-0 font-mono">{r.artikel}</span>
             <span className="min-w-0 flex-1 truncate text-ink-soft">{r.bezeichnung}</span>
             <span className="w-14 shrink-0 text-right font-mono text-ink-faint">{r.plaetze}</span>
-            <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(r.bestand, true) }}>
+            <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(r.bestand, true, anzeige, r.einheit) }}>
               {fmt(r.bestand)}
             </span>
           </div>
@@ -488,6 +490,7 @@ function EditorSelectionView({ sel }: { sel: NonNullable<EditorSelection> }) {
 }
 
 function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
+  const anzeige = useStockAnzeigeConfig();
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className={TABLE_HEADER}>
@@ -508,7 +511,7 @@ function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
             <span className="w-14 shrink-0 font-mono text-accent">{p.ort.lagerkennung}</span>
             <span className="w-14 shrink-0 font-mono text-accent">{p.platz.kurz || `#${p.platz.platzId}`}</span>
             <span className="min-w-0 flex-1 truncate text-ink-soft">{p.platz.platzbezeichnung}</span>
-            <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(p.bestand, true) }}>
+            <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(p.bestand, true, anzeige, p.einheit) }}>
               {fmt(p.bestand)}
             </span>
           </button>
@@ -519,6 +522,7 @@ function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
 }
 
 function PlatzPanel({ platz }: { platz: Lagerplatz }) {
+  const anzeige = useStockAnzeigeConfig();
   const total = platz.bestaende.reduce((s, b) => s + b.bestand, 0);
   const gewicht = platzGewicht(platz);
   const max = platzMaxGewicht(platz);
@@ -548,14 +552,17 @@ function PlatzPanel({ platz }: { platz: Lagerplatz }) {
                   <div className={`truncate ${MUTED}`}>{b.bezeichnung1}</div>
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="font-mono text-[13px] font-semibold" style={{ color: stockColor(b.bestand, true) }}>
+                  <div className="font-mono text-[13px] font-semibold" style={{ color: stockColor(b.bestand, true, anzeige, b.einheit) }}>
                     {fmt(b.bestand)}
                   </div>
                   {b.gewicht > 0 && <div className={MUTED}>{fmtKg(b.bestand * b.gewicht)}</div>}
                 </div>
               </div>
               <div className="mt-1.5 h-[3px] overflow-hidden rounded-full bg-line-soft">
-                <div className="h-full rounded-full" style={{ width: `${Math.min(100, b.bestand / 6)}%`, background: stockColor(b.bestand, true) }} />
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${Math.min(100, b.bestand / 6)}%`, background: stockColor(b.bestand, true, anzeige, b.einheit) }}
+                />
               </div>
             </div>
           ))
@@ -608,6 +615,7 @@ function BestandsSummary({
 }
 
 function BestandsTabelle({ rows, emptyText }: { rows: OrtRow[]; emptyText: string }) {
+  const anzeige = useStockAnzeigeConfig();
   return (
     <>
       <div className={TABLE_HEADER}>
@@ -623,7 +631,7 @@ function BestandsTabelle({ rows, emptyText }: { rows: OrtRow[]; emptyText: strin
             <span className="w-14 shrink-0 font-mono text-accent">{r.platz}</span>
             <span className="w-16 shrink-0 font-mono">{r.artikel}</span>
             <span className="min-w-0 flex-1 truncate text-ink-soft">{r.bezeichnung}</span>
-            <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(r.bestand, true) }}>
+            <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(r.bestand, true, anzeige, r.einheit) }}>
               {fmt(r.bestand)}
             </span>
           </div>

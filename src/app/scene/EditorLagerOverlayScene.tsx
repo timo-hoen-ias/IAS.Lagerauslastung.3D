@@ -9,7 +9,7 @@ import { FLOOR, RACK_GREY, WALL_COLOR, WALL_GLASS_COLOR, stockColor } from '../c
 import { HOVER_COLOR } from './Cell';
 import { BASE_H } from './layout';
 import { levelFloorY, mergeBoxes, rackParts, wallSegmentBoxes, wallSegmentGlassBoxes } from './boxes';
-import { setEditorSelection, useEditorSelection } from '../store';
+import { setEditorSelection, useEditorSelection, useStockAnzeigeConfig } from '../store';
 
 const WALL_HOEHE = 3;
 
@@ -135,6 +135,7 @@ function RegalOverlayBox({
 
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const editorSelection = useEditorSelection();
+  const anzeige = useStockAnzeigeConfig();
   const selectedZelleKey =
     editorSelection && editorSelection.level === 'platz' && editorSelection.regalId === regalId && editorSelection.zelle
       ? zelleKey(editorSelection.zelle)
@@ -159,7 +160,7 @@ function RegalOverlayBox({
           const gesamt = zelle.platz?.bestaende.reduce((s, b) => s + b.bestand, 0) ?? 0;
           const key = zelleKey(zelle);
           const aktiv = key === hoverKey || key === selectedZelleKey;
-          const color = aktiv ? HOVER_COLOR : stockColor(gesamt, zelle.platz !== undefined);
+          const color = aktiv ? HOVER_COLOR : stockColor(gesamt, zelle.platz !== undefined, anzeige, zelle.platz?.bestaende[0]?.einheit);
           const ebeneH = ebenenHoehen[zelle.ebene - 1] ?? ebenenHoehen[0] ?? 0.5;
           const cy = (floorY[zelle.ebene - 1] ?? BASE_H) + ebeneH / 2;
           return (

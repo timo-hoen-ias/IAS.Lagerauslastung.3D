@@ -17,7 +17,7 @@ function regal(id: string, ebenen: number, plaetzeProEbene: number) {
 }
 
 function bestand(artikelnummer: string, bestand: number): Lagerbestand {
-  return { artikelnummer, bezeichnung1: artikelnummer, matchcode: '', bestand, verfuegbarkeit: bestand, gewicht: 0 };
+  return { artikelnummer, bezeichnung1: artikelnummer, matchcode: '', bestand, verfuegbarkeit: bestand, gewicht: 0, einheit: '' };
 }
 
 function platz(d1: number, d2: number, d3: number, bestaende: Lagerbestand[] = []): Lagerplatz {

@@ -128,3 +128,22 @@ keine eigene Regalreihen-/Gang-Zwischenebene, weil das Sage-Datenmodell sie nich
 - Auswahl-State: `EditorSelection` in `store.tsx`, getrennt von der Sage-`Selection` und mit
   ihr gegenseitig exklusiv (Klick auf das eine löscht das andere) — der Inspector zeigt immer
   nur eine der beiden Detailansichten gleichzeitig.
+
+## Bestands-Anzeige (konfigurierbare Einfärbung)
+
+Die Bestandsfarbe je Platz/Zelle ist **nicht mehr fest verdrahtet**, sondern über
+`StockAnzeigeConfig` (`shared/anzeige.ts`) konfigurierbar, pro Mandant serverseitig
+gespeichert (`IAS_BestandsAnzeige`-Tabelle, `server/anzeigeStore.ts`,
+`/api/anzeige?db=…&mandant=…`) und im Client per `useStockAnzeigeConfig()`
+(`store.tsx`) global verfügbar. Zwei Modi:
+
+- **Standard** (Default): binär — kein Bestand → `leerFarbe` (grau), Bestand vorhanden →
+  `standardFarbe` (hellblau), unabhängig von der Menge.
+- **Schwellenwert**: Farbe nach Menge, gestaffelt je Sage-Lagermengeneinheit (`Lagerbestand.einheit`,
+  aus `Lagermengeneinheit`) — z. B. KG < 100 gelb, 100–500 orange, ≥ 500 rot. Fehlt für die
+  Einheit eines Bestands eine Regel, greift `standardFarbe` als Fallback.
+
+`resolveStockColor()`/`stockLegend()` (`shared/anzeige.ts`, re-exportiert als `stockColor` aus
+`colors.ts`) sind die einzige Quelle für Bestandsfarben — Aufrufer übergeben immer die aktuelle
+`StockAnzeigeConfig` und (wo bekannt) die Mengeneinheit des jeweiligen Bestands. Einstellbar über
+das Palette-Icon in der Icon-Leiste (`StockAnzeigeSettings.tsx`).

@@ -3,7 +3,7 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Lagerort, Lagerplatz } from '../../shared/types';
 import { platzIdsMitArtikel } from '../article';
-import { setSelection, useSelectedArticle, useSelectedPlatzId } from '../store';
+import { setSelection, useSelectedArticle, useSelectedPlatzId, useStockAnzeigeConfig } from '../store';
 import { cellSegments, HOVER_COLOR, type CellSeg } from './Cell';
 import { cellLocalPosition, cellSize } from './layout';
 import type { PlacedRack } from './transform';
@@ -31,7 +31,8 @@ function CellLayer({
   ort: Lagerort;
 }) {
   const artikel = useSelectedArticle();
-  const { segs } = useMemo(() => cellSegments(plaetze, placed), [plaetze, placed]);
+  const anzeige = useStockAnzeigeConfig();
+  const { segs } = useMemo(() => cellSegments(plaetze, placed, anzeige), [plaetze, placed, anzeige]);
   const filled = useMemo(() => segs.filter((s) => !s.empty), [segs]);
   const empty = useMemo(() => segs.filter((s) => s.empty), [segs]);
   const filledRef = useRef<THREE.InstancedMesh>(null);

@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { Lagerbestand, Lagerplatz } from '../../shared/types';
+import { DEFAULT_STOCK_ANZEIGE } from '../../shared/anzeige';
 import { bestandAnteile, boxLabel, cellSegments, fmtBestand, kistenFarbe, labelFontSize, labelVertical } from './Cell';
 import { BASE_H, SLOT } from './layout';
 
-const b = (artikelnummer: string, bestand: number, matchcode = ''): Lagerbestand => ({
+const b = (artikelnummer: string, bestand: number, matchcode = '', einheit = ''): Lagerbestand => ({
   artikelnummer,
   bezeichnung1: '',
   matchcode,
   bestand,
   verfuegbarkeit: bestand,
   gewicht: 1,
+  einheit,
 });
 
 const p = (platzId: number, dim: { d1: number; d2: number; d3: number }, bestaende: Lagerbestand[]): Lagerplatz => ({
@@ -112,9 +114,9 @@ describe('labelFontSize', () => {
 
 describe('cellSegments', () => {
   it('Einzelbox: 1 Segment mit Bestandsfarbe und 2 Labels (±x)', () => {
-    const { segs, labels } = cellSegments([p(1, { d1: 1, d2: 1, d3: 1 }, [b('HAMMER', 50)])], rack);
+    const { segs, labels } = cellSegments([p(1, { d1: 1, d2: 1, d3: 1 }, [b('HAMMER', 50)])], rack, DEFAULT_STOCK_ANZEIGE);
     expect(segs).toHaveLength(1);
-    expect(segs[0]).toMatchObject({ index: 0, platzId: 1, empty: false, color: '#27ae60' });
+    expect(segs[0]).toMatchObject({ index: 0, platzId: 1, empty: false, color: DEFAULT_STOCK_ANZEIGE.standardFarbe });
     expect(segs[0]!.size).toEqual([0.9, 0.6, 0.9]); // default-Maße geklemmt
     expect(labels).toHaveLength(2);
     expect(labels.map((l) => l.side)).toEqual([1, -1]);
@@ -122,7 +124,7 @@ describe('cellSegments', () => {
   });
 
   it('setzt die Zellposition aus dem Fachraster (Gang, Ebene 1, Fach 1)', () => {
-    const { segs } = cellSegments([p(7, { d1: 1, d2: 1, d3: 1 }, [b('A', 10)])], rack);
+    const { segs } = cellSegments([p(7, { d1: 1, d2: 1, d3: 1 }, [b('A', 10)])], rack, DEFAULT_STOCK_ANZEIGE);
     const [x, y, z] = segs[0]!.pos;
     expect(x).toBeCloseTo(0, 6);
     expect(y).toBeCloseTo(BASE_H + 0.3, 6); // Sockel + halbe Zellhöhe
@@ -133,6 +135,7 @@ describe('cellSegments', () => {
     const { segs, labels } = cellSegments(
       [p(2, { d1: 1, d2: 1, d3: 2 }, [b('HAMMER', 50), b('ZANGE', 50)])],
       rack,
+      DEFAULT_STOCK_ANZEIGE,
     );
     expect(segs).toHaveLength(2);
     expect(segs.map((s) => s.color)).toEqual([kistenFarbe(0), kistenFarbe(1)]);
@@ -144,16 +147,23 @@ describe('cellSegments', () => {
   });
 
   it('leerer Platz: transparente Instanz ohne Label', () => {
-    const { segs, labels } = cellSegments([p(3, { d1: 1, d2: 1, d3: 3 }, [])], rack);
+    const { segs, labels } = cellSegments([p(3, { d1: 1, d2: 1, d3: 3 }, [])], rack, DEFAULT_STOCK_ANZEIGE);
     expect(segs).toHaveLength(1);
     expect(segs[0]!.empty).toBe(true);
     expect(labels).toHaveLength(0);
+  });
+
+  it('nutzt im Schwellen-Modus die Mengeneinheit des einzelnen Artikels für die Farbwahl', () => {
+    const anzeige = { ...DEFAULT_STOCK_ANZEIGE, modus: 'schwelle' as const };
+    const { segs } = cellSegments([p(1, { d1: 1, d2: 1, d3: 1 }, [b('A', 200, '', 'KG')])], rack, anzeige);
+    expect(segs[0]!.color).toBe('#e67e22'); // 200 kg liegt in der 100–500-Stufe
   });
 
   it('indiziert Segmente fortlaufend über mehrere Plätze', () => {
     const { segs } = cellSegments(
       [p(1, { d1: 1, d2: 1, d3: 1 }, [b('A', 1)]), p(2, { d1: 1, d2: 1, d3: 2 }, [b('B', 1), b('C', 1)])],
       rack,
+      DEFAULT_STOCK_ANZEIGE,
     );
     expect(segs.map((s) => s.index)).toEqual([0, 1, 2]);
   });

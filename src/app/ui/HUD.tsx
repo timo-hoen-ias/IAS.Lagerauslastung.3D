@@ -11,6 +11,7 @@ import {
   LightbulbOff,
   Map,
   Orbit,
+  Palette,
   Pencil,
   PersonStanding,
   RotateCcw,
@@ -20,7 +21,7 @@ import {
   X,
 } from 'lucide-react';
 import type { LagerDaten } from '../../shared/types';
-import { stockColor } from '../colors';
+import { stockLegend } from '../../shared/anzeige';
 import type { DbInfo, Mode } from '../App';
 import {
   clearMeasure,
@@ -32,6 +33,7 @@ import {
   useMeasurePoints,
   useRackTransforms,
   useSelectedRack,
+  useStockAnzeigeConfig,
   useTransformMode,
   useWsConnected,
 } from '../store';
@@ -40,6 +42,7 @@ import { rackMetrics } from '../scene/layout';
 import DragPanel from './DragPanel';
 import DecimalInput from './DecimalInput';
 import LagerWizard from './LagerWizard';
+import StockAnzeigeSettings from './StockAnzeigeSettings';
 
 const MODES: { id: Mode; label: string; icon: LucideIcon }[] = [
   { id: 'orbit', label: 'Orbit', icon: Orbit },
@@ -52,13 +55,6 @@ const HELP_LINES = [
   'Ego: WASD · Shift Sprint · Leertaste Springen',
   'Bearbeiten: Regal ziehen · Ring drehen · Q/E · Pfeile · []',
   'Tab: Modus · Platz/Regal anklicken: Bestände',
-];
-
-const LEGEND_ROWS: [string, string][] = [
-  ['leer', stockColor(0, false)],
-  ['< 100', stockColor(50, true)],
-  ['100–499', stockColor(200, true)],
-  ['≥ 500', stockColor(500, true)],
 ];
 
 const SELECT_CLASS =
@@ -135,6 +131,9 @@ export default function HUD({
   const wsConnected = useWsConnected();
   const [helpOpen, setHelpOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [anzeigeOpen, setAnzeigeOpen] = useState(false);
+  const stockAnzeige = useStockAnzeigeConfig();
+  const legendRows = stockLegend(stockAnzeige);
 
   const toggleEdit = () => {
     setEdit(!edit);
@@ -254,6 +253,10 @@ export default function HUD({
             <LayoutGrid size={18} />
             <Tip>Lager-Editor</Tip>
           </button>
+          <button className={railBtnClass(anzeigeOpen)} onClick={() => setAnzeigeOpen(!anzeigeOpen)}>
+            <Palette size={18} />
+            <Tip>Bestands-Anzeige</Tip>
+          </button>
         </div>
 
         <div className="my-2 h-px w-7 bg-line" />
@@ -265,6 +268,7 @@ export default function HUD({
       </div>
 
       <LagerWizard open={editorOpen} onClose={() => setEditorOpen(false)} db={db} />
+      <StockAnzeigeSettings open={anzeigeOpen} onClose={() => setAnzeigeOpen(false)} db={db} mandant={data?.mandant ?? mandant ?? 1} />
 
       {helpOpen && (
         <div className="fixed bottom-12 left-16 z-30 w-72 rounded-xl border border-line bg-raised-2/98 p-4 text-[12.5px] shadow-2xl shadow-black/50 backdrop-blur">
@@ -284,10 +288,10 @@ export default function HUD({
               <div className="my-3 h-px bg-line" />
               <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-faint">Bestand je Platz</div>
               <div className="flex flex-col gap-1.5">
-                {LEGEND_ROWS.map(([label, color]) => (
-                  <div key={label} className="flex items-center gap-2 text-ink-soft">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
-                    {label}
+                {legendRows.map((row) => (
+                  <div key={row.label} className="flex items-center gap-2 text-ink-soft">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: row.color }} />
+                    {row.label}
                   </div>
                 ))}
               </div>

@@ -149,7 +149,7 @@ describe('gangPlätze', () => {
       platz(2, { d1: 1, d2: 1, d3: 1 }, {}),
       platz(3, { d1: 2, d2: 1, d3: 1 }, {}),
     ];
-    plätze[0]!.bestaende = [{ artikelnummer: 'A', bezeichnung1: '', matchcode: '', bestand: 5, verfuegbarkeit: 5, gewicht: 0 }];
+    plätze[0]!.bestaende = [{ artikelnummer: 'A', bezeichnung1: '', matchcode: '', bestand: 5, verfuegbarkeit: 5, gewicht: 0, einheit: '' }];
     const o = ort({ d1: 2, d2: 1, d3: 1 }, plätze);
     expect(gangPlätze(o, 'rack', 0).map((p) => p.platzId)).toEqual([1, 2]);
     expect(gangPlätze(o, 'rack', 1).map((p) => p.platzId)).toEqual([3]);

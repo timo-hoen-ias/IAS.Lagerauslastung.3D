@@ -5,6 +5,8 @@ export type Lagerbestand = {
   bestand: number;
   verfuegbarkeit: number;
   gewicht: number;
+  /** Sage-Lagermengeneinheit (z. B. "KG", "STK") — Basis für die konfigurierbaren Bestands-Schwellenwerte je Einheit. */
+  einheit: string;
 };
 
 export type Lagerplatz = {

@@ -17,6 +17,7 @@ const platz = (bestaende: { bestand: number; gewicht: number }[], maxGewicht: nu
     bestand: b.bestand,
     verfuegbarkeit: b.bestand,
     gewicht: b.gewicht,
+    einheit: '',
   })),
 });
 
