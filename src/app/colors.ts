@@ -31,6 +31,9 @@ export function stockColor(total: number, hasStock: boolean): string {
 }
 
 export const RACK_GREY = '#8f8f8f';
+/** Hallenwände (Sage- und Editor-Lager gemeinsam, s. Walls.tsx/EditorLagerOverlayScene.tsx). */
+export const WALL_COLOR = '#4d5766';
+export const WALL_GLASS_COLOR = '#5a6d82';
 /** Spiegelt `--color-accent` (index.css) für 3D-Materialien, die keine CSS-Variablen lesen können. */
 export const ACCENT = '#45d8c8';
 export const FLOOR = '#20242b';

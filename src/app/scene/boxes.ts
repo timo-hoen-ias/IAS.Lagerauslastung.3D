@@ -116,6 +116,17 @@ function wallPiers(from: number, to: number, bay: number): number[] {
   return out;
 }
 
+/** Fensteröffnungen (Lücken) zwischen aufeinanderfolgenden Pfeilern eines Rasters. */
+function wallBays(positions: number[], pier: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < positions.length - 1; i++) {
+    const a = positions[i]! + pier / 2;
+    const b = positions[i + 1]! - pier / 2;
+    if (b > a) out.push([a, b]);
+  }
+  return out;
+}
+
 /** Lager-Umfassungswand als Box-Baupläne: Brüstung + Dachbalken + Pfeiler im Raster, dazwischen Fensteröffnungen. */
 export function wallBoxes(
   bounds: WallBounds,
@@ -178,23 +189,13 @@ export function wallGlassBoxes(
   const midY = sill + windowH / 2;
   const glassThick = Math.max(0.02, thick - WALL_GLASS_INSET * 2);
 
-  const bays = (positions: number[]): [number, number][] => {
-    const out: [number, number][] = [];
-    for (let i = 0; i < positions.length - 1; i++) {
-      const a = positions[i]! + pier / 2;
-      const b = positions[i + 1]! - pier / 2;
-      if (b > a) out.push([a, b]);
-    }
-    return out;
-  };
-
   const zWall = (z: number) => {
-    for (const [a, b] of bays(wallPiers(minX, maxX, bay))) {
+    for (const [a, b] of wallBays(wallPiers(minX, maxX, bay), pier)) {
       boxes.push({ pos: [(a + b) / 2, midY, z], size: [b - a, windowH, glassThick] });
     }
   };
   const xWall = (x: number) => {
-    for (const [a, b] of bays(wallPiers(minZ, maxZ, bay))) {
+    for (const [a, b] of wallBays(wallPiers(minZ, maxZ, bay), pier)) {
       boxes.push({ pos: [x, midY, (a + b) / 2], size: [glassThick, windowH, b - a] });
     }
   };
@@ -204,4 +205,42 @@ export function wallGlassBoxes(
   xWall(minX);
   xWall(maxX);
   return boxes;
+}
+
+export type WallSegmentBoxOpts = { thick?: number; pier?: number; sill?: number; header?: number; bay?: number };
+
+/**
+ * Wandsegment-Baupläne (Brüstung + Dachbalken + Pfeiler, s. `wallBoxes`) entlang der lokalen
+ * X-Achse, zentriert um 0 (Wanddicke entlang Z) — für beliebig gedrehte Wandkanten (Editor-
+ * Grundriss-Polygon), die anders als `wallBoxes` nicht achsenparallel sein müssen. Wird je
+ * Kante per `<mesh position rotation-y>` platziert, da `mergeBoxes` keine Rotation je Box kennt.
+ */
+export function wallSegmentBoxes(length: number, height: number, opts: WallSegmentBoxOpts = {}): BoxDesc[] {
+  const thick = opts.thick ?? WALL_THICK;
+  const pier = opts.pier ?? WALL_PIER;
+  const sill = opts.sill ?? WALL_SILL;
+  const header = opts.header ?? WALL_HEADER;
+  const bay = opts.bay ?? WALL_BAY;
+  const boxes: BoxDesc[] = [];
+  boxes.push({ pos: [0, sill / 2, 0], size: [length, sill, thick] });
+  boxes.push({ pos: [0, height - header / 2, 0], size: [length, header, thick] });
+  for (const px of wallPiers(-length / 2, length / 2, bay)) boxes.push({ pos: [px, height / 2, 0], size: [pier, height, thick] });
+  return boxes;
+}
+
+/** Verglasung eines Wandsegments, s. `wallSegmentBoxes`/`wallGlassBoxes` (gleiches lokales Koordinatensystem). */
+export function wallSegmentGlassBoxes(length: number, height: number, opts: WallSegmentBoxOpts = {}): BoxDesc[] {
+  const thick = opts.thick ?? WALL_THICK;
+  const pier = opts.pier ?? WALL_PIER;
+  const sill = opts.sill ?? WALL_SILL;
+  const header = opts.header ?? WALL_HEADER;
+  const bay = opts.bay ?? WALL_BAY;
+  const windowH = height - sill - header;
+  if (windowH <= 0) return [];
+  const midY = sill + windowH / 2;
+  const glassThick = Math.max(0.02, thick - WALL_GLASS_INSET * 2);
+  return wallBays(wallPiers(-length / 2, length / 2, bay), pier).map(([a, b]) => ({
+    pos: [(a + b) / 2, midY, 0],
+    size: [b - a, windowH, glassThick],
+  }));
 }

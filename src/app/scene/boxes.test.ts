@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { floorFrameBoxes, mergeBoxes, rackParts, wallBoxes, wallGlassBoxes } from './boxes';
+import { floorFrameBoxes, mergeBoxes, rackParts, wallBoxes, wallGlassBoxes, wallSegmentBoxes, wallSegmentGlassBoxes } from './boxes';
 import { BASE_H, FRAME_CLEAR, LEVEL_GAP, POST, TOP_H, TOP_OVERHANG } from './layout';
 
 describe('mergeBoxes', () => {
@@ -134,5 +134,37 @@ describe('wallGlassBoxes', () => {
 
   it('liefert nichts, wenn kein Fensterband Platz hat (Wand niedriger als Brüstung+Dach)', () => {
     expect(wallGlassBoxes(bounds, 1)).toEqual([]);
+  });
+});
+
+describe('wallSegmentBoxes', () => {
+  const length = 12;
+  const height = 4;
+
+  it('liefert Brüstung + Dachbalken + Pfeiler im 3-m-Raster (5 Pfeiler bei 12 m Länge)', () => {
+    const seg = wallSegmentBoxes(length, height);
+    const piers = seg.filter((b) => b.size[1] === height);
+    const strips = seg.filter((b) => b.size[1] !== height);
+    expect(strips.length).toBe(2); // Brüstung + Dach
+    expect(piers.length).toBe(5); // -6,-3,0,3,6
+  });
+
+  it('ist um die lokale X-Achse zentriert (Pfeiler von -6 bis 6)', () => {
+    const seg = wallSegmentBoxes(length, height);
+    const piers = seg.filter((b) => b.size[1] === height);
+    const xs = piers.map((b) => b.pos[0]).sort((a, b) => a - b);
+    expect(xs[0]).toBeCloseTo(-length / 2, 6);
+    expect(xs[xs.length - 1]).toBeCloseTo(length / 2, 6);
+  });
+});
+
+describe('wallSegmentGlassBoxes', () => {
+  it('füllt jede Fensteröffnung entlang des Segments (4 Bays bei 12 m Länge)', () => {
+    const boxes = wallSegmentGlassBoxes(12, 4);
+    expect(boxes.length).toBe(4);
+  });
+
+  it('liefert nichts, wenn kein Fensterband Platz hat', () => {
+    expect(wallSegmentGlassBoxes(12, 1)).toEqual([]);
   });
 });

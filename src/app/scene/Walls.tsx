@@ -1,10 +1,9 @@
 import { useEffect, useMemo } from 'react';
 import { mergeBoxes, wallBoxes, wallGlassBoxes } from './boxes';
 import { rackBounds, type PlacedRack } from './transform';
+import { WALL_COLOR, WALL_GLASS_COLOR } from '../colors';
 
 export const WALL_MARGIN = 4;
-const WALL_COLOR = '#4d5766';
-const GLASS_COLOR = '#5a6d82';
 
 export default function Walls({ racks, height }: { racks: PlacedRack[]; height: number }) {
   const bounds = useMemo(() => rackBounds(racks, WALL_MARGIN), [racks]);
@@ -21,7 +20,7 @@ export default function Walls({ racks, height }: { racks: PlacedRack[]; height: 
       </mesh>
       {glassGeo && (
         <mesh geometry={glassGeo}>
-          <meshStandardMaterial color={GLASS_COLOR} roughness={0.15} metalness={0.1} transparent opacity={0.4} depthWrite={false} />
+          <meshStandardMaterial color={WALL_GLASS_COLOR} roughness={0.15} metalness={0.1} transparent opacity={0.4} depthWrite={false} />
         </mesh>
       )}
     </>

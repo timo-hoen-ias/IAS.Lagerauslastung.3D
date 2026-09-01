@@ -5,14 +5,13 @@ import * as THREE from 'three';
 import type { EditorLagerOverlay, EditorZelleOverlay } from '../editorOverlay';
 import { editorGangNummer, editorReiheSeite, editorRegalIndex } from '../editorOverlay';
 import { polygonCenter, wallSegments } from './editorLayout';
-import { FLOOR, RACK_GREY, stockColor } from '../colors';
+import { FLOOR, RACK_GREY, WALL_COLOR, WALL_GLASS_COLOR, stockColor } from '../colors';
 import { HOVER_COLOR } from './Cell';
 import { BASE_H, LEVEL_GAP, TOP_H } from './layout';
-import { mergeBoxes, rackParts } from './boxes';
+import { mergeBoxes, rackParts, wallSegmentBoxes, wallSegmentGlassBoxes } from './boxes';
 import { setEditorSelection, useEditorSelection } from '../store';
 
 const WALL_HOEHE = 3;
-const WALL_DICKE = 0.15;
 
 function Grundflaeche({ points, offset }: { points: EditorLagerOverlay['grundriss']; offset: { x: number; z: number } }) {
   const geo = useMemo(() => {
@@ -30,15 +29,42 @@ function Grundflaeche({ points, offset }: { points: EditorLagerOverlay['grundris
   );
 }
 
+/**
+ * Wandsegment im gleichen Stil wie die Sage-Lagerhalle (`Walls.tsx`): Brüstung + Dachbalken +
+ * Pfeiler im Raster mit Fensterverglasung dazwischen, statt einer schlichten Box — s. CLAUDE.md
+ * „Läger aus dem Lager-Editor sollen die gleichen Wände enthalten wie Sage-Läger".
+ */
+function WandSegment({ length, position, rotationY }: { length: number; position: [number, number, number]; rotationY: number }) {
+  const solidGeo = useMemo(() => mergeBoxes(wallSegmentBoxes(length, WALL_HOEHE)), [length]);
+  const glassGeo = useMemo(() => mergeBoxes(wallSegmentGlassBoxes(length, WALL_HOEHE)), [length]);
+  useEffect(
+    () => () => {
+      solidGeo?.dispose();
+      glassGeo?.dispose();
+    },
+    [solidGeo, glassGeo],
+  );
+  if (!solidGeo) return null;
+  return (
+    <group position={[position[0], 0, position[2]]} rotation-y={rotationY}>
+      <mesh geometry={solidGeo} receiveShadow castShadow>
+        <meshStandardMaterial color={WALL_COLOR} roughness={0.6} metalness={0.1} />
+      </mesh>
+      {glassGeo && (
+        <mesh geometry={glassGeo}>
+          <meshStandardMaterial color={WALL_GLASS_COLOR} roughness={0.15} metalness={0.1} transparent opacity={0.4} depthWrite={false} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
 function Waende({ points, offset }: { points: EditorLagerOverlay['grundriss']; offset: { x: number; z: number } }) {
   const segs = useMemo(() => wallSegments(points, WALL_HOEHE), [points]);
   return (
     <group position={[offset.x, 0, offset.z]}>
       {segs.map((s, i) => (
-        <mesh key={i} position={s.position} rotation-y={s.rotationY} receiveShadow castShadow>
-          <boxGeometry args={[s.length, WALL_HOEHE, WALL_DICKE]} />
-          <meshStandardMaterial color="#333840" roughness={0.6} metalness={0.1} />
-        </mesh>
+        <WandSegment key={i} length={s.length} position={s.position} rotationY={s.rotationY} />
       ))}
     </group>
   );
