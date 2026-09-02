@@ -62,8 +62,9 @@ füllt immer den ganzen Viewport, Panels sind `fixed`/`absolute` Overlays):
 - **Regal-Manifest** (`Inspector.tsx`, rechts angedockt, volle Höhe, resizable): Such-
   /Auswahl-Panel im Packschein-Stil — Mono-Codes, Lochrand-Trenner (`.perf-divider`)
   zwischen Kopf und Tabelle, Bestands-Balken je Zeile.
-- **Radar** (`Minimap.tsx`, frei verschiebbar, Standardposition oben links neben der
-  Icon-Leiste): kreisförmige Variante der bisherigen Top-Down-Minimap, inkl. rotierendem
+- **Radar** (`Minimap.tsx`, nur im Ego-/Walk-Modus sichtbar, frei verschiebbar, Standardposition
+  unten links neben der Icon-Leiste — verdeckt so nicht das rechts angedockte Regal-Manifest):
+  kreisförmige Variante der bisherigen Top-Down-Minimap, inkl. rotierendem
   Sweep (`animate-spin` + `[animation-duration:4s]`) und **Live-Buchungs-Pings** — echte
   Ereignisse aus `useBuchungen()`, per `bookingFlashes()`/`platzIndex()` (aus `article.ts`,
   bereits von `BookingFlash.tsx` genutzt) auf Radar-Koordinaten projiziert

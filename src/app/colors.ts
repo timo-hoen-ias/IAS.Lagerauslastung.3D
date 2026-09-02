@@ -32,7 +32,8 @@ export const WALL_COLOR = '#4d5766';
 export const WALL_GLASS_COLOR = '#5a6d82';
 /** Spiegelt `--color-accent` (index.css) für 3D-Materialien, die keine CSS-Variablen lesen können. */
 export const ACCENT = '#45d8c8';
-export const FLOOR = '#20242b';
+/** Neutrales Grau statt der bisherigen dunklen Blau-Töne — besserer Kontrast zu Regalen/Wänden. */
+export const FLOOR = '#3c3c3c';
 export const GRID_CELL = '#333a44';
 export const GRID_SECTION = '#e8e8e8';
 export const LINE_WHITE = '#f2f2f2';

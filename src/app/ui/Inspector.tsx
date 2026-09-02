@@ -164,7 +164,7 @@ export default function Inspector({ data, editorLagerList }: { data: LagerDaten 
               >
                 <span className="shrink-0 font-mono font-semibold text-accent">{v.artikelnummer}</span>
                 <span className="min-w-0 flex-1 truncate text-ink-soft">{v.bezeichnung1}</span>
-                <span className="shrink-0 text-ink-faint">{fmt(v.gesamt)}</span>
+                <span className="shrink-0 text-ink-faint">{fmtMenge(v.gesamt, v.einheit)}</span>
               </li>
             ))}
           </ul>
@@ -414,7 +414,7 @@ function ArtikelTabelle({ rows }: { rows: ArtikelGroupRow[] }) {
             <span className="min-w-0 flex-1 truncate text-ink-soft">{r.bezeichnung}</span>
             <span className="w-14 shrink-0 text-right font-mono text-ink-faint">{r.plaetze}</span>
             <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(r.bestand, true, anzeige, r.einheit) }}>
-              {fmt(r.bestand)}
+              {fmtMenge(r.bestand, r.einheit)}
             </span>
           </div>
         ))}
@@ -512,7 +512,7 @@ function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
             <span className="w-14 shrink-0 font-mono text-accent">{p.platz.kurz || `#${p.platz.platzId}`}</span>
             <span className="min-w-0 flex-1 truncate text-ink-soft">{p.platz.platzbezeichnung}</span>
             <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(p.bestand, true, anzeige, p.einheit) }}>
-              {fmt(p.bestand)}
+              {fmtMenge(p.bestand, p.einheit)}
             </span>
           </button>
         ))}
@@ -553,7 +553,7 @@ function PlatzPanel({ platz }: { platz: Lagerplatz }) {
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="font-mono text-[13px] font-semibold" style={{ color: stockColor(b.bestand, true, anzeige, b.einheit) }}>
-                    {fmt(b.bestand)}
+                    {fmtMenge(b.bestand, b.einheit)}
                   </div>
                   {b.gewicht > 0 && <div className={MUTED}>{fmtKg(b.bestand * b.gewicht)}</div>}
                 </div>
@@ -632,7 +632,7 @@ function BestandsTabelle({ rows, emptyText }: { rows: OrtRow[]; emptyText: strin
             <span className="w-16 shrink-0 font-mono">{r.artikel}</span>
             <span className="min-w-0 flex-1 truncate text-ink-soft">{r.bezeichnung}</span>
             <span className="w-16 shrink-0 text-right font-mono" style={{ color: stockColor(r.bestand, true, anzeige, r.einheit) }}>
-              {fmt(r.bestand)}
+              {fmtMenge(r.bestand, r.einheit)}
             </span>
           </div>
         ))}
@@ -668,4 +668,8 @@ function RackPanel({ ort, rack }: { ort: Lagerort; rack: PlacedRack }) {
 
 function fmt(n: number): string {
   return n.toLocaleString('de-DE');
+}
+
+function fmtMenge(n: number, einheit: string): string {
+  return einheit ? `${fmt(n)} ${einheit}` : fmt(n);
 }

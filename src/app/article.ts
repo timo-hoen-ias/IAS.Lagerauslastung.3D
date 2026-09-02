@@ -2,11 +2,11 @@ import type { LagerDaten, Lagerplatz, Lagerort } from '../shared/types';
 import { cellLocalPosition, cellSize, gangPlätze } from './scene/layout';
 import type { PlacedRack, RackTransform } from './scene/transform';
 
-export type ArtikelRef = { artikelnummer: string; bezeichnung1: string; gesamt: number };
+export type ArtikelRef = { artikelnummer: string; bezeichnung1: string; gesamt: number; einheit: string };
 
 /** Alle im geladenen Bestand vorkommenden Artikel, dedupliziert und sortiert. */
 export function alleArtikel(data: LagerDaten): ArtikelRef[] {
-  const map = new Map<string, { bezeichnung1: string; gesamt: number }>();
+  const map = new Map<string, { bezeichnung1: string; gesamt: number; einheit: string }>();
   for (const ort of data.lagerorte) {
     for (const p of ort.plaetze) {
       for (const b of p.bestaende) {
@@ -14,8 +14,9 @@ export function alleArtikel(data: LagerDaten): ArtikelRef[] {
         if (e) {
           e.gesamt += b.bestand;
           if (!e.bezeichnung1) e.bezeichnung1 = b.bezeichnung1;
+          if (!e.einheit) e.einheit = b.einheit;
         } else {
-          map.set(b.artikelnummer, { bezeichnung1: b.bezeichnung1, gesamt: b.bestand });
+          map.set(b.artikelnummer, { bezeichnung1: b.bezeichnung1, gesamt: b.bestand, einheit: b.einheit });
         }
       }
     }

@@ -9,6 +9,21 @@ const MOVE_EPS = 0.05;
 const CANVAS_SIZE = 176;
 const RADAR_PING_MS = 1600;
 
+/**
+ * Einmalige Migration beim Laden: die alte Radar-Standardposition (oben links) räumt die neue
+ * (unten links, s. `defaultPos` unten) sonst nicht auf, weil eine gespeicherte Position immer
+ * Vorrang vor `defaultPos` hat — nur eine nie manuell verschobene Position wird zurückgesetzt.
+ */
+try {
+  const raw = localStorage.getItem('wm-panel-minimap');
+  if (raw) {
+    const p = JSON.parse(raw) as { x?: number; y?: number };
+    if (p.x === 70 && p.y === 66) localStorage.removeItem('wm-panel-minimap');
+  }
+} catch {
+  /* Speicher nicht verfügbar – ignorieren */
+}
+
 /** Throttle: nur neu zeichnen, wenn sich Spieler/Regal genug bewegt haben ODER das Intervall abgelaufen ist. */
 export function minimapRedrawDue(last: { x: number; z: number; yaw: number; t: number } | null, x: number, z: number, yaw: number, now: number): boolean {
   if (!last) return true;
@@ -106,7 +121,7 @@ export default function Minimap({ racks, visible }: { racks: PlacedRack[]; visib
     <DragPanel
       id="minimap"
       className="pointer-events-none z-[15] h-[200px] w-[200px] rounded-full border border-line bg-panel/95 shadow-2xl shadow-black/50 backdrop-blur"
-      defaultPos={() => ({ x: 70, y: 66 })}
+      defaultPos={() => ({ x: 70, y: Math.max(70, window.innerHeight - 252) })}
     >
       <div className="pointer-events-none absolute inset-2 rounded-full border border-white/5" />
       <div className="pointer-events-none absolute inset-5 rounded-full border border-white/5" />

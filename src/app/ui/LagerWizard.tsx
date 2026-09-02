@@ -1,5 +1,18 @@
-import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, FlipHorizontal, FlipVertical, Plus, RotateCw, Trash2, X } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
+import {
+  AlignLeft,
+  AlignRight,
+  ArrowLeftRight,
+  ChevronDown,
+  ChevronRight,
+  FlipHorizontal,
+  FlipVertical,
+  Plus,
+  RotateCcw,
+  RotateCw,
+  Trash2,
+  X,
+} from 'lucide-react';
 import type { EditorGang, EditorLager, EditorPlatz, EditorRegal, EditorRegalreihe, Punkt } from '../../shared/editor';
 import { deriveEditorPlaetze, ebenenHoehen, regalDim3Bereiche, regalHoehe, rotateReihe } from '../../shared/editor';
 import DecimalInput from './DecimalInput';
@@ -13,14 +26,18 @@ function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${(idSeq++).toString(36)}`;
 }
 
-function newRegal(): EditorRegal {
-  return { id: newId('regal'), ebenen: 3, plaetzeProEbene: 4, breite: 1.2, tiefe: 1.0 };
+/** Maße, die ein neu erstelltes Regal übernimmt — s. `regalDefaults`-State (immer die zuletzt bearbeiteten Werte). */
+type RegalMasse = Pick<EditorRegal, 'ebenen' | 'plaetzeProEbene' | 'breite' | 'tiefe' | 'ebenenHoehen'>;
+const INITIALE_REGAL_MASSE: RegalMasse = { ebenen: 3, plaetzeProEbene: 4, breite: 1.2, tiefe: 1.0 };
+
+function newRegal(masse: RegalMasse): EditorRegal {
+  return { id: newId('regal'), ...masse, ebenenHoehen: masse.ebenenHoehen ? [...masse.ebenenHoehen] : undefined };
 }
-function newReihe(seite: 'links' | 'rechts'): EditorRegalreihe {
-  return { id: newId('reihe'), seite, regale: [newRegal()] };
+function newReihe(seite: 'links' | 'rechts', masse: RegalMasse): EditorRegalreihe {
+  return { id: newId('reihe'), seite, regale: [newRegal(masse)] };
 }
-function newGang(): EditorGang {
-  return { id: newId('gang'), nummer: 0, breite: 3, reihen: [newReihe('links'), newReihe('rechts')] };
+function newGang(masse: RegalMasse): EditorGang {
+  return { id: newId('gang'), nummer: 0, breite: 3, reihen: [newReihe('links', masse), newReihe('rechts', masse)] };
 }
 
 function withGang(gaenge: EditorGang[], gangId: string, fn: (g: EditorGang) => EditorGang): EditorGang[] {
@@ -35,6 +52,16 @@ function withRegal(reihe: EditorRegalreihe, regalId: string, fn: (x: EditorRegal
 /** Gang-Nummer = Position in der Liste (Dim1) — nicht separat editierbar. */
 function numbered(gaenge: EditorGang[]): EditorGang[] {
   return gaenge.map((g, i) => ({ ...g, nummer: i + 1 }));
+}
+
+/**
+ * Spiegelt einen Gang: tauscht die Seite ("links"/"rechts") beider Reihen — Alternative zum
+ * manuellen Verschieben in der 3D-Vorschau, die die konfigurierte Gangbreite exakt erhält (die
+ * Sage-Zuordnung bleibt unverändert, da Dim3 rein aus der Reihenfolge in `gang.reihen`, nicht aus
+ * `seite`, abgeleitet wird — s. `regalDim3Bereiche()`/`deriveEditorPlaetze()` in shared/editor.ts).
+ */
+function spiegleGang(gang: EditorGang): EditorGang {
+  return { ...gang, reihen: gang.reihen.map((r) => ({ ...r, seite: r.seite === 'links' ? 'rechts' : 'links' })) };
 }
 
 /** Meterangabe auf 2 Nachkommastellen, ohne Fließkomma-Rauschen (z. B. 3 × 0.6 → "1.8" statt "1.7999999..."). */
@@ -68,6 +95,10 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
   const [status, setStatus] = useState<{ art: 'ok' | 'fehler'; text: string } | null>(null);
   /** Regale, deren Ebenenhöhen-Editor gerade aufgeklappt ist (nur UI-Zustand, nicht persistiert). */
   const [ebenenOffen, setEbenenOffen] = useState<Set<string>>(new Set());
+  /** Gänge, die in der Liste eingeklappt sind — nur UI-Zustand, nicht persistiert. */
+  const [gaengeEingeklappt, setGaengeEingeklappt] = useState<Set<string>>(new Set());
+  /** Maße des zuletzt bearbeiteten Regals — Vorbelegung für neu erstellte Regale/Reihen/Gänge. */
+  const [regalDefaults, setRegalDefaults] = useState<RegalMasse>(INITIALE_REGAL_MASSE);
 
   useEffect(() => {
     if (!open || db === 'perf') return;
@@ -112,6 +143,19 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
   if (!open) return null;
 
   const gangeNummeriert = numbered(gaenge);
+  const hatVersatz = gaenge.some((g) => g.reihen.some((r) => r.versatz || r.anker || r.regale.some((x) => x.versatz)));
+  const versaetzeZuruecksetzen = () =>
+    setGaenge((gs) =>
+      gs.map((g) => ({
+        ...g,
+        reihen: g.reihen.map((r) => ({
+          ...r,
+          versatz: undefined,
+          anker: undefined,
+          regale: r.regale.map((x) => ({ ...x, versatz: undefined })),
+        })),
+      })),
+    );
 
   const vorschau = async () => {
     setBusy('vorschau');
@@ -224,7 +268,7 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
 
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Gänge</div>
-            <button className={secondaryBtnClass} onClick={() => setGaenge((gs) => [...gs, newGang()])}>
+            <button className={secondaryBtnClass} onClick={() => setGaenge((gs) => [...gs, newGang(regalDefaults)])}>
               <span className="inline-flex items-center gap-1">
                 <Plus size={13} /> Gang hinzufügen
               </span>
@@ -235,28 +279,58 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
             {gangeNummeriert.map((gang) => {
               const dim3Bereiche = regalDim3Bereiche(gang);
               const dim3ById = new Map(dim3Bereiche.map((b) => [b.regalId, b]));
+              const eingeklappt = gaengeEingeklappt.has(gang.id);
+              const regalAnzahl = gang.reihen.reduce((s, r) => s + r.regale.length, 0);
               return (
               <div key={gang.id} className="rounded-lg border border-line bg-raised p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="font-mono text-[12.5px] text-ink">
+                <div className={`flex items-center justify-between ${eingeklappt ? '' : 'mb-2'}`}>
+                  <button
+                    className="flex items-center gap-1.5 font-mono text-[12.5px] text-ink"
+                    onClick={() =>
+                      setGaengeEingeklappt((s) => {
+                        const next = new Set(s);
+                        if (next.has(gang.id)) next.delete(gang.id);
+                        else next.add(gang.id);
+                        return next;
+                      })
+                    }
+                    title={eingeklappt ? 'Gang aufklappen' : 'Gang einklappen'}
+                  >
+                    {eingeklappt ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                     Gang {gang.nummer} <span className="text-ink-faint">(Dim1)</span>
-                  </div>
+                    {eingeklappt && (
+                      <span className="text-ink-faint">
+                        · {regalAnzahl} {regalAnzahl === 1 ? 'Regal' : 'Regale'}
+                      </span>
+                    )}
+                  </button>
                   <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1.5 text-[11.5px] text-ink-faint">
-                      Breite (m)
-                      <DecimalInput
-                        value={gang.breite}
-                        onCommit={(v) => setGaenge((gs) => withGang(gs, gang.id, (g) => ({ ...g, breite: v })))}
-                      />
-                    </label>
+                    {!eingeklappt && (
+                      <label className="flex items-center gap-1.5 text-[11.5px] text-ink-faint">
+                        Breite (m)
+                        <DecimalInput
+                          value={gang.breite}
+                          onCommit={(v) => setGaenge((gs) => withGang(gs, gang.id, (g) => ({ ...g, breite: v })))}
+                        />
+                      </label>
+                    )}
                     <button
                       className={iconBtnClass}
+                      title="Gang spiegeln — tauscht links/rechts, ohne die Sage-Zuordnung zu verändern"
+                      onClick={() => setGaenge((gs) => withGang(gs, gang.id, spiegleGang))}
+                    >
+                      <ArrowLeftRight size={13} />
+                    </button>
+                    <button
+                      className={iconBtnClass}
+                      title="Gang entfernen"
                       onClick={() => setGaenge((gs) => gs.filter((g) => g.id !== gang.id))}
                     >
                       <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
+                {!eingeklappt && (
                 <div className="grid grid-cols-2 gap-3">
                   {gang.reihen.map((reihe) => {
                     const reiheDim3 = reihe.regale.map((r) => dim3ById.get(r.id)).filter((b) => b !== undefined);
@@ -320,12 +394,25 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                             <FlipVertical size={13} />
                           </button>
                           <button
+                            className={`${iconBtnClass} ${reihe.buendig === 'rechts' ? 'border-accent/40 text-accent' : ''}`}
+                            title="Reihe rechtsbündig ausrichten — bei unterschiedlich langen Reihen an der rechten statt der linken Gang-Kante andocken, ohne die Sage-Zuordnung zu ändern"
+                            onClick={() =>
+                              setGaenge((gs) =>
+                                withGang(gs, gang.id, (g) =>
+                                  withReihe(g, reihe.id, (r) => ({ ...r, buendig: r.buendig === 'rechts' ? undefined : 'rechts' })),
+                                ),
+                              )
+                            }
+                          >
+                            {reihe.buendig === 'rechts' ? <AlignRight size={13} /> : <AlignLeft size={13} />}
+                          </button>
+                          <button
                             className={iconBtnClass}
                             title="Regal hinzufügen"
                             onClick={() =>
                               setGaenge((gs) =>
                                 withGang(gs, gang.id, (g) =>
-                                  withReihe(g, reihe.id, (r) => ({ ...r, regale: [...r.regale, newRegal()] })),
+                                  withReihe(g, reihe.id, (r) => ({ ...r, regale: [...r.regale, newRegal(regalDefaults)] })),
                                 ),
                               )
                             }
@@ -338,7 +425,9 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                         {reihe.regale.map((regal, i) => {
                           const bereich = dim3ById.get(regal.id);
                           return (
-                          <div key={regal.id} className="flex items-center gap-1.5 text-[11.5px] text-ink-faint">
+                          <Fragment key={regal.id}>
+                          <div className="flex flex-col gap-1 text-[11.5px] text-ink-faint">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span className="w-4 font-mono text-ink-faint">{i + 1}</span>
                             {bereich && (
                               <span
@@ -361,6 +450,7 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                                     withReihe(g, reihe.id, (r) => withRegal(r, regal.id, (x) => ({ ...x, ebenen: v }))),
                                   ),
                                 );
+                                setRegalDefaults((d) => ({ ...d, ebenen: v }));
                               }}
                             />
                             <span title="Plätze pro Ebene">Pl./Eb.</span>
@@ -371,6 +461,7 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                               value={regal.plaetzeProEbene}
                               onChange={(e) => {
                                 const v = Math.max(1, Number(e.target.value) || 1);
+                                setRegalDefaults((d) => ({ ...d, plaetzeProEbene: v }));
                                 setGaenge((gs) =>
                                   withGang(gs, gang.id, (g) =>
                                     withReihe(g, reihe.id, (r) =>
@@ -380,103 +471,108 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                                 );
                               }}
                             />
-                            <span className="ml-auto" title="Breite × Tiefe (m)">
+                            <div className="ml-auto flex items-center gap-1">
+                              <button
+                                className={iconBtnClass}
+                                title="Höhe je Ebene einzeln festlegen"
+                                onClick={() =>
+                                  setEbenenOffen((s) => {
+                                    const next = new Set(s);
+                                    if (next.has(regal.id)) next.delete(regal.id);
+                                    else next.add(regal.id);
+                                    return next;
+                                  })
+                                }
+                              >
+                                {ebenenOffen.has(regal.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                              </button>
+                              <button
+                                className={iconBtnClass}
+                                title="Regal entfernen"
+                                onClick={() =>
+                                  setGaenge((gs) =>
+                                    withGang(gs, gang.id, (g) =>
+                                      withReihe(g, reihe.id, (r) => ({
+                                        ...r,
+                                        regale: r.regale.filter((x) => x.id !== regal.id),
+                                      })),
+                                    ),
+                                  )
+                                }
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="ml-5 flex flex-wrap items-center gap-1.5 text-ink-faint/80">
+                            <span title="Breite × Tiefe (m)">
                               <DecimalInput
                                 className={`${textInputClass} w-14 text-right`}
                                 value={regal.breite}
-                                onCommit={(v) =>
+                                onCommit={(v) => {
                                   setGaenge((gs) =>
                                     withGang(gs, gang.id, (g) =>
                                       withReihe(g, reihe.id, (r) => withRegal(r, regal.id, (x) => ({ ...x, breite: v }))),
                                     ),
-                                  )
-                                }
+                                  );
+                                  setRegalDefaults((d) => ({ ...d, breite: v }));
+                                }}
                               />
                             </span>
                             ×
                             <DecimalInput
                               className={`${textInputClass} w-14 text-right`}
                               value={regal.tiefe}
-                              onCommit={(v) =>
+                              onCommit={(v) => {
                                 setGaenge((gs) =>
                                   withGang(gs, gang.id, (g) =>
                                     withReihe(g, reihe.id, (r) => withRegal(r, regal.id, (x) => ({ ...x, tiefe: v }))),
                                   ),
-                                )
-                              }
+                                );
+                                setRegalDefaults((d) => ({ ...d, tiefe: v }));
+                              }}
                             />
                             <span className="text-ink-faint">m</span>
                             <span className="font-mono text-ink-faint/70" title="Gesamthöhe = Summe der Ebenenhöhen">
                               Höhe {fmtM(regalHoehe(regal))} m
                             </span>
-                            <button
-                              className={iconBtnClass}
-                              title="Höhe je Ebene einzeln festlegen"
-                              onClick={() =>
-                                setEbenenOffen((s) => {
-                                  const next = new Set(s);
-                                  if (next.has(regal.id)) next.delete(regal.id);
-                                  else next.add(regal.id);
-                                  return next;
-                                })
-                              }
-                            >
-                              {ebenenOffen.has(regal.id) ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                            </button>
-                            <button
-                              className={iconBtnClass}
-                              title="Regal entfernen"
-                              onClick={() =>
-                                setGaenge((gs) =>
-                                  withGang(gs, gang.id, (g) =>
-                                    withReihe(g, reihe.id, (r) => ({
-                                      ...r,
-                                      regale: r.regale.filter((x) => x.id !== regal.id),
-                                    })),
-                                  ),
-                                )
-                              }
-                            >
-                              <Trash2 size={12} />
-                            </button>
                           </div>
+                          </div>
+                          {ebenenOffen.has(regal.id) && (
+                            <div className="ml-5 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-faint">
+                              <span title="Höhe je Ebene, unten beginnend">Ebenenhöhen:</span>
+                              {ebenenHoehen(regal).map((h, ebeneIdx) => (
+                                <label key={ebeneIdx} className="flex items-center gap-1">
+                                  <span className="font-mono">{ebeneIdx + 1}.</span>
+                                  <DecimalInput
+                                    className={`${textInputClass} w-14 text-right`}
+                                    value={h}
+                                    onCommit={(v) => {
+                                      const hoehen = [...ebenenHoehen(regal)];
+                                      hoehen[ebeneIdx] = v;
+                                      setGaenge((gs) =>
+                                        withGang(gs, gang.id, (g) =>
+                                          withReihe(g, reihe.id, (r) =>
+                                            withRegal(r, regal.id, (x) => ({ ...x, ebenenHoehen: hoehen })),
+                                          ),
+                                        ),
+                                      );
+                                      setRegalDefaults((d) => ({ ...d, ebenenHoehen: hoehen }));
+                                    }}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                          </Fragment>
                           );
                         })}
-                        {reihe.regale.map(
-                          (regal) =>
-                            ebenenOffen.has(regal.id) && (
-                              <div key={`${regal.id}-ebenen`} className="ml-5 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-faint">
-                                <span title="Höhe je Ebene, unten beginnend">Ebenenhöhen:</span>
-                                {ebenenHoehen(regal).map((h, ebeneIdx) => (
-                                  <label key={ebeneIdx} className="flex items-center gap-1">
-                                    <span className="font-mono">{ebeneIdx + 1}.</span>
-                                    <DecimalInput
-                                      className={`${textInputClass} w-14 text-right`}
-                                      value={h}
-                                      onCommit={(v) =>
-                                        setGaenge((gs) =>
-                                          withGang(gs, gang.id, (g) =>
-                                            withReihe(g, reihe.id, (r) =>
-                                              withRegal(r, regal.id, (x) => {
-                                                const hoehen = [...ebenenHoehen(x)];
-                                                hoehen[ebeneIdx] = v;
-                                                return { ...x, ebenenHoehen: hoehen };
-                                              }),
-                                            ),
-                                          ),
-                                        )
-                                      }
-                                    />
-                                  </label>
-                                ))}
-                              </div>
-                            ),
-                        )}
                       </div>
                     </div>
                     );
                   })}
                 </div>
+                )}
               </div>
               );
             })}
@@ -492,8 +588,20 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
               <span>3D-Vorschau</span>
               <div className="flex items-center gap-2">
                 <span className="normal-case tracking-normal text-ink-faint/80">
-                  {previewMode === 'regal' ? 'Regal ziehen: Position anpassen' : 'Reihe ziehen: ganze Reihe verschieben'}
+                  {previewMode === 'regal'
+                    ? 'Regal ziehen: Position anpassen'
+                    : previewMode === 'reihe'
+                      ? 'Reihe ziehen: ganze Reihe verschieben'
+                      : 'Gang ziehen: beide Reihen gemeinsam verschieben'}
                 </span>
+                <button
+                  className="flex items-center gap-1 normal-case tracking-normal text-ink-faint hover:text-accent disabled:pointer-events-none disabled:opacity-40"
+                  onClick={versaetzeZuruecksetzen}
+                  disabled={!hatVersatz}
+                  title="Alle per Drag gesetzten Positions-Anpassungen zurücksetzen — Regale/Reihen wieder auf die automatische Anordnung (inkl. konfigurierter Gangbreite)"
+                >
+                  <RotateCcw size={12} /> Positionen zurücksetzen
+                </button>
                 <div className="flex overflow-hidden rounded-md border border-line">
                   <button
                     className={`px-2 py-1 text-[11px] normal-case tracking-normal ${previewMode === 'regal' ? 'bg-accent/20 text-accent' : 'bg-raised text-ink-faint hover:text-accent'}`}
@@ -506,6 +614,12 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                     onClick={() => setPreviewMode('reihe')}
                   >
                     Reihe
+                  </button>
+                  <button
+                    className={`px-2 py-1 text-[11px] normal-case tracking-normal ${previewMode === 'gang' ? 'bg-accent/20 text-accent' : 'bg-raised text-ink-faint hover:text-accent'}`}
+                    onClick={() => setPreviewMode('gang')}
+                  >
+                    Gang
                   </button>
                 </div>
               </div>
@@ -522,8 +636,23 @@ export default function LagerWizard({ open, onClose, db }: { open: boolean; onCl
                   })),
                 )
               }
-              onReiheMove={(reiheId, versatz) =>
-                setGaenge((gs) => gs.map((g) => withReihe(g, reiheId, (r) => ({ ...r, versatz }))))
+              onReiheMove={(reiheId, versatz, anker) =>
+                setGaenge((gs) =>
+                  gs.map((g) => withReihe(g, reiheId, (r) => ({ ...r, versatz, anker: anker ?? undefined }))),
+                )
+              }
+              onGangMove={(gangId, delta) =>
+                setGaenge((gs) =>
+                  withGang(gs, gangId, (g) => ({
+                    ...g,
+                    reihen: g.reihen.map((r) => {
+                      const v = r.versatz ?? { x: 0, z: 0 };
+                      // Ein manueller Gang-Drag ersetzt einen ggf. gesetzten Z-Anker durch einen fixen
+                      // Versatz — sonst würde die Z-Verschiebung wirkungslos verpuffen (s. `anker` in shared/editor.ts).
+                      return { ...r, versatz: { x: v.x + delta.x, z: v.z + delta.z }, anker: undefined };
+                    }),
+                  })),
+                )
               }
             />
           </div>

@@ -53,6 +53,27 @@ export type EditorRegalreihe = {
   /** Spiegelung der ganzen Reihe an der lokalen X-Achse (Spaltenrichtung) bzw. Z-Achse (Regaltiefe) — für Aufbauten, die per 90°-Drehung allein nicht auf die reale Ausrichtung passen. */
   spiegelX?: boolean;
   spiegelZ?: boolean;
+  /**
+   * Bündig-Kante entlang der Gang-Längsachse (Dim3-Richtung), Default „links": bei Reihen
+   * unterschiedlicher Länge (z. B. 11 vs. 10 Regale) startet die Anordnung sonst immer am
+   * gemeinsamen linken Gang-Anfang, wodurch die kürzere Reihe rechts mitten im Raum endet statt an
+   * der Wand. „rechts" richtet die Reihe stattdessen am rechten Ende des Gangs aus — ohne Drag
+   * und ohne die Sage-Zuordnung zu berühren (Dim3 hängt nur von der Reihenfolge in `gang.reihen`
+   * ab, nicht von der X-Position, s. `regalDim3Bereiche()`/`deriveEditorPlaetze()`).
+   */
+  buendig?: 'links' | 'rechts';
+  /**
+   * Persistenter Andock-Anker an eine andere Reihe (Z-Achse, i. d. R. eine Reihe eines Nachbar-
+   * Gangs) — Alternative zu `versatz.z`, die beim Ziehen in der 3D-Vorschau automatisch gesetzt
+   * wird, wenn die Reihe an einer Nachbar-Reihe einrastet (s. `resolveAnkerVersatzZ()` in
+   * scene/editorLayout.ts). Anders als `versatz.z` ist das kein fixer Wert: `offset` (der Z-
+   * Abstand der beiden Reihen-Mittellinien zum Zeitpunkt des Andockens) bleibt konstant, die
+   * tatsächliche Position wird bei jeder Neuberechnung aus der AKTUELLEN Position der Ziel-Reihe
+   * neu abgeleitet — bleibt die Reihe so z. B. beim Ändern der eigenen oder der Ziel-Gangbreite
+   * weiterhin an der Ziel-Reihe „angehackt", statt wie ein fixer Versatz auseinanderzudriften.
+   * `versatz.z` wird bei aktivem Anker ignoriert; `versatz.x` bleibt unabhängig davon wirksam.
+   */
+  anker?: { reiheId: string; offset: number };
 };
 
 /** Dreht eine Reihe um `deltaDeg` (90°-Raster), auf [0,360) normalisiert. */

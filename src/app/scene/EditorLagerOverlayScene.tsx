@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
+import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import type { EditorLagerOverlay, EditorZelleOverlay } from '../editorOverlay';
-import { editorGangNummer, editorReiheSeite, editorRegalIndex } from '../editorOverlay';
 import { polygonCenter, wallSegments } from './editorLayout';
 import { FLOOR, RACK_GREY, WALL_COLOR, WALL_GLASS_COLOR, stockColor } from '../colors';
 import { HOVER_COLOR } from './Cell';
@@ -80,23 +79,6 @@ function zelleKey(zelle: Pick<EditorZelleOverlay, 'ebene' | 'spalte'>): string {
   return `${zelle.ebene}:${zelle.spalte}`;
 }
 
-/** Kurzbezeichnung eines Regals für das Identifikations-Label ("Gang 2 · rechts · Regal 1"). */
-function regalLabel(overlay: EditorLagerOverlay, regal: EditorLagerOverlay['regale'][number]): string {
-  const { gangId, reiheId, regalId } = regal.placement;
-  const gang = editorGangNummer(overlay, gangId) ?? '?';
-  const seite = editorReiheSeite(overlay, reiheId) === 'rechts' ? 'rechts' : 'links';
-  const index = editorRegalIndex(overlay, reiheId, regalId) ?? '?';
-  const mitPlatz = regal.zellen.filter((z) => z.platz);
-  const bezeichnungen = mitPlatz.map((z) => z.platz!.platzbezeichnung).sort();
-  const platzInfo =
-    bezeichnungen.length > 0
-      ? bezeichnungen.length === 1
-        ? bezeichnungen[0]
-        : `${bezeichnungen[0]} … ${bezeichnungen[bezeichnungen.length - 1]}`
-      : `Eb. 1–${regal.placement.ebenen} · ohne Sage-Abgleich`;
-  return `Gang ${gang} · ${seite} · Regal ${index}\n${platzInfo}`;
-}
-
 function RegalOverlayBox({
   overlay,
   regal,
@@ -144,7 +126,7 @@ function RegalOverlayBox({
 
   return (
     <group position={[position[0] + offset.x, 0, position[2] + offset.z]} rotation-y={rotationY}>
-      {/* Nur die physische Regalgeometrie spiegeln — Kanten-Hervorhebung und Label-Billboard bleiben unverzerrt/lesbar. */}
+      {/* Nur die physische Regalgeometrie spiegeln — Kanten-Hervorhebung bleibt unverzerrt/lesbar. */}
       <group scale={[spiegelX ? -1 : 1, 1, spiegelZ ? -1 : 1]}>
         <mesh geometry={darkGeo!} castShadow receiveShadow>
           <meshStandardMaterial color="#262c36" roughness={0.9} />
@@ -196,25 +178,9 @@ function RegalOverlayBox({
       </group>
 
       {regalAktiv && (
-        <>
-          <lineSegments geometry={rackEdgeGeo} position={[0, size.h / 2, 0]}>
-            <lineBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
-          </lineSegments>
-          <Billboard position={[0, size.h + 0.5, 0]}>
-            <Text
-              fontSize={0.32}
-              color="#ffffff"
-              outlineWidth={0.04}
-              outlineColor="#0a0c10"
-              anchorX="center"
-              anchorY="bottom"
-              textAlign="center"
-              lineHeight={1.3}
-            >
-              {regalLabel(overlay, regal)}
-            </Text>
-          </Billboard>
-        </>
+        <lineSegments geometry={rackEdgeGeo} position={[0, size.h / 2, 0]}>
+          <lineBasicMaterial color="#ffffff" transparent opacity={0.7} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </lineSegments>
       )}
     </group>
   );

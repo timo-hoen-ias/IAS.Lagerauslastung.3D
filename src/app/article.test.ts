@@ -96,6 +96,7 @@ describe('filterArtikel', () => {
       artikelnummer,
       bezeichnung1: 'Artikel X',
       gesamt: 1,
+      einheit: 'STK',
     }));
     expect(filterArtikel(viele, '', 3)).toEqual([]);
     expect(filterArtikel(viele, 'artikel', 2).length).toBe(2);

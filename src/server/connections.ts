@@ -34,7 +34,7 @@ export function listConnections(): DbConnection[] {
     const password = process.env[`${prefix}PASSWORD`] ?? process.env.MSSQL_PASSWORD ?? 'Start11!';
     return {
       id,
-      name: id === 'default' ? process.env.WM_DB_default_NAME ?? database : database,
+      name: process.env[`${prefix}NAME`] ?? id,
       server,
       database,
       user,
