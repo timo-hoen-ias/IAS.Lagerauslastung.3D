@@ -133,6 +133,7 @@ export function platzMitId(index: PlatzIndex, platzId: number): PlacedPlatz | nu
 export const FLASH_HERKUNFT_COLOR = '#ff9f43';
 export const FLASH_ZIEL_COLOR = '#2ecc71';
 export const FLASH_DURATION_MS = 1500;
+export const SPLINE_COLOR = '#7fd4ff';
 
 export type FlashDef = {
   key: string;
@@ -140,6 +141,8 @@ export type FlashDef = {
   start: number;
   color: string;
   label: string;
+  /** Ziel-Zelle (Welt) – wenn gesetzt, verbindet ein Spline Herkunft und Ziel. */
+  to?: CellWorld;
 };
 
 /** Menge kompakt formatieren (Ganzzahl ohne Nachkommastellen). */
@@ -194,7 +197,7 @@ type FlashBuchung = {
   menge: number;
   herkunftPlatzId: number | null;
   zielPlatzId: number | null;
-  ts: number;
+  receivedAt: number;
 };
 
 /** Erzeugt pro Buchung bis zu zwei Blitze: Herkunft (warm, „-Menge") und Ziel (grün, „+Menge"). */
@@ -206,29 +209,26 @@ export function bookingFlashes(
   const out: FlashDef[] = [];
   for (const b of buchungen) {
     const menge = fmtMenge(b.menge);
-    if (b.herkunftPlatzId != null) {
-      const hit = platzMitId(index, b.herkunftPlatzId);
-      if (hit) {
-        out.push({
-          key: `${b.id}-h`,
-          w: platzWorld(hit.rack, transformOf(hit.rack.key), hit.platz),
-          start: b.ts,
-          color: FLASH_HERKUNFT_COLOR,
-          label: `${b.artikelnummer} -${menge}`,
-        });
-      }
+    const herkunft = b.herkunftPlatzId != null ? platzMitId(index, b.herkunftPlatzId) : null;
+    const ziel = b.zielPlatzId != null ? platzMitId(index, b.zielPlatzId) : null;
+    if (herkunft) {
+      out.push({
+        key: `${b.id}-h`,
+        w: platzWorld(herkunft.rack, transformOf(herkunft.rack.key), herkunft.platz),
+        start: b.receivedAt,
+        color: FLASH_HERKUNFT_COLOR,
+        label: `${b.artikelnummer} -${menge}`,
+        to: ziel ? platzWorld(ziel.rack, transformOf(ziel.rack.key), ziel.platz) : undefined,
+      });
     }
-    if (b.zielPlatzId != null) {
-      const hit = platzMitId(index, b.zielPlatzId);
-      if (hit) {
-        out.push({
-          key: `${b.id}-z`,
-          w: platzWorld(hit.rack, transformOf(hit.rack.key), hit.platz),
-          start: b.ts,
-          color: FLASH_ZIEL_COLOR,
-          label: `${b.artikelnummer} +${menge}`,
-        });
-      }
+    if (ziel) {
+      out.push({
+        key: `${b.id}-z`,
+        w: platzWorld(ziel.rack, transformOf(ziel.rack.key), ziel.platz),
+        start: b.receivedAt,
+        color: FLASH_ZIEL_COLOR,
+        label: `${b.artikelnummer} +${menge}`,
+      });
     }
   }
   return out;

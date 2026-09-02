@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Lagerort } from '../../shared/types';
-import { ortRows, rackRows } from './Inspector';
+import { ortRows, platzRows, rackRows } from './Inspector';
 
 const ort = (plaetze: Lagerort['plaetze']): Lagerort => ({
   lagerkennung: 'L1',
@@ -63,5 +63,31 @@ describe('rackRows', () => {
   it('liefert leere Liste für einen Gang ohne Bestand', () => {
     const o = ort([platz(1, 'A', [{ artikel: '1001', bestand: 3 }], 1)]);
     expect(rackRows(o, { kind: 'rack', gang: 5 })).toEqual([]);
+  });
+});
+
+describe('platzRows', () => {
+  it('sortiert Bestände alphabetisch nach Artikelnummer und übernimmt alle Felder', () => {
+    const rows = platzRows({
+      platzId: 1,
+      dim: { d1: 1, d2: 1, d3: 1 },
+      ebene: 2,
+      kurz: 'A-01',
+      platzbezeichnung: 'A-01',
+      masse: { hoehe: 60, breite: 80, laenge: 120 },
+      maxGewicht: 500,
+      bestaende: [
+        { artikelnummer: '3001', bezeichnung1: 'Art 3001', matchcode: 'M3', bestand: 5, verfuegbarkeit: 2, gewicht: 10, einheit: '' },
+        { artikelnummer: '1001', bezeichnung1: 'Art 1001', matchcode: 'M1', bestand: 3, verfuegbarkeit: 3, gewicht: 2, einheit: '' },
+      ],
+    });
+    expect(rows.map((r) => [r.artikelnummer, r.matchcode, r.bestand, r.verfuegbarkeit])).toEqual([
+      ['1001', 'M1', 3, 3],
+      ['3001', 'M3', 5, 2],
+    ]);
+  });
+
+  it('liefert leere Liste bei Platz ohne Bestände', () => {
+    expect(platzRows({ ...platz(1, 'A', []), bestaende: [] })).toEqual([]);
   });
 });

@@ -218,7 +218,7 @@ export default function Inspector({ data, editorLagerList }: { data: LagerDaten 
           </div>
           <div className="perf-divider" />
           {selection.platz ? (
-            <PlatzPanel platz={selection.platz} />
+            <PlatzPanel platz={selection.platz} onBack={() => setSelection({ ort: selection.ort, platz: null, rack: null })} />
           ) : selection.rack ? (
             <RackPanel ort={selection.ort} rack={selection.rack} />
           ) : (
@@ -521,7 +521,32 @@ function ArticlePanel({ plätze }: { plätze: ArtikelPlatz[] }) {
   );
 }
 
-function PlatzPanel({ platz }: { platz: Lagerplatz }) {
+export type PlatzRow = {
+  artikelnummer: string;
+  bezeichnung1: string;
+  matchcode: string;
+  bestand: number;
+  verfuegbarkeit: number;
+};
+
+export function platzRows(platz: Lagerplatz): PlatzRow[] {
+  return [...platz.bestaende]
+    .sort((a, b) => a.artikelnummer.localeCompare(b.artikelnummer, 'de'))
+    .map((b) => ({
+      artikelnummer: b.artikelnummer,
+      bezeichnung1: b.bezeichnung1,
+      matchcode: b.matchcode,
+      bestand: b.bestand,
+      verfuegbarkeit: b.verfuegbarkeit,
+    }));
+}
+
+function fmtMasse(m: Lagerplatz['masse']): string {
+  const cm = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace('.', ','));
+  return `${cm(m.laenge)} × ${cm(m.breite)} × ${cm(m.hoehe)} cm`;
+}
+
+function PlatzPanel({ platz, onBack }: { platz: Lagerplatz; onBack?: () => void }) {
   const anzeige = useStockAnzeigeConfig();
   const total = platz.bestaende.reduce((s, b) => s + b.bestand, 0);
   const gewicht = platzGewicht(platz);
@@ -533,6 +558,15 @@ function PlatzPanel({ platz }: { platz: Lagerplatz }) {
         <span className="font-mono font-semibold text-accent">Platz {platz.kurz || `#${platz.platzId}`}</span>
         <span className="font-mono text-[12px] font-semibold text-stock-mid">Σ {fmt(total)}</span>
       </div>
+      {onBack && (
+        <button
+          className="inline-flex w-fit items-center justify-center gap-1.5 rounded-md border border-line bg-raised px-2.5 py-1.5 text-[12px] text-ink-soft transition-colors hover:border-accent/40 hover:text-accent"
+          onClick={onBack}
+          title="Bestände des gesamten Lagerorts anzeigen"
+        >
+          ← Zur Übersicht
+        </button>
+      )}
       <div className="flex items-center justify-between">
         <span className={MUTED}>Last</span>
         <span className="font-mono text-[13px] font-semibold" style={{ color: überlastet ? 'var(--color-stock-high)' : 'var(--color-ink)' }}>

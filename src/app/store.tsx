@@ -282,7 +282,7 @@ export function useSelectedArticle(): string | null {
 
 // ---- Live-Buchungen (Live-Ansicht) -----------------------------------------
 
-export type LiveBuchung = BuchungEvent & { id: number };
+export type LiveBuchung = BuchungEvent & { id: number; receivedAt: number };
 
 /** Wie lange ein Buchungs-Event im Store vorgehalten wird (Animation + Puffer). */
 export const BUCHUNG_STORE_MS = 10_000;
@@ -292,10 +292,11 @@ let buchungSeq = 0;
 const buchungListeners = new Set<() => void>();
 
 export function pushBuchung(e: BuchungEvent): void {
-  liveBuchungen = [...liveBuchungen, { ...e, id: ++buchungSeq }];
-  const cut = Date.now() - BUCHUNG_STORE_MS;
-  if (liveBuchungen.length > 0 && liveBuchungen[0]!.ts < cut) {
-    liveBuchungen = liveBuchungen.filter((b) => b.ts >= cut);
+  const receivedAt = Date.now();
+  liveBuchungen = [...liveBuchungen, { ...e, id: ++buchungSeq, receivedAt }];
+  const cut = receivedAt - BUCHUNG_STORE_MS;
+  if (liveBuchungen.length > 0 && liveBuchungen[0]!.receivedAt < cut) {
+    liveBuchungen = liveBuchungen.filter((b) => b.receivedAt >= cut);
   }
   for (const l of buchungListeners) l();
 }

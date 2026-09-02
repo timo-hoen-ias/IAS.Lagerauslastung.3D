@@ -3,6 +3,7 @@ import { findConnection, listConnections, type DbConnection } from './connection
 import { perfLagerDaten } from './perf/generate';
 import { lagerMitPerfFallback } from './fallback';
 import { BUCHUNGEN_TOPIC, BuchungsRing, parseBuchung, publishBuchung } from './buchungen';
+import { getDb, heatmapBuchungen, insertBuchung } from './buchungenDb';
 import { poolFor } from './db';
 import { createLager, getLager, listLager, matchSage, updateLager } from './editorStore';
 import { getAnzeigeConfig, saveAnzeigeConfig } from './anzeigeStore';
@@ -133,6 +134,7 @@ const server = Bun.serve({
         const body = (await req.json()) as unknown;
         const evt = parseBuchung(body);
         if (!evt) return Response.json({ error: 'Ungültige Buchung' }, { status: 400 });
+        insertBuchung(getDb(), evt);
         ring.push(evt);
         publishBuchung(server, evt);
         return new Response(null, { status: 204 });
@@ -173,6 +175,16 @@ const server = Bun.serve({
         () => perfLagerDaten(perfOrte(), perfSeed()),
       );
       return Response.json(daten);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/buchungen/heatmap') {
+      const from = Number(url.searchParams.get('from'));
+      const to = Number(url.searchParams.get('to'));
+      if (!Number.isFinite(from) || !Number.isFinite(to)) {
+        return Response.json({ error: 'Parameter from/to (epoch ms) erforderlich' }, { status: 400 });
+      }
+      const mandantRaw = url.searchParams.get('mandant');
+      const mandant = mandantRaw ? Number(mandantRaw) : undefined;
+      return Response.json(heatmapBuchungen(getDb(), from, to, mandant));
     }
     if (url.pathname === '/api/editor/lager' || /^\/api\/editor\/lager\/\d+$/.test(url.pathname)) {
       return handleEditorLager(req, url);

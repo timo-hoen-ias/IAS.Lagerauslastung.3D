@@ -45,5 +45,8 @@ export type BuchungEvent = {
   zielCarrierId: number | null;
   typ: number | null;
   benutzer: string;
+  herkunftLager?: string | null;
+  zielLager?: string | null;
+  quelle?: string | null;
   ts: number;
 };

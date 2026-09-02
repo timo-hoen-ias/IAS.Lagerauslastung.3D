@@ -31,6 +31,7 @@ export function parseBuchung(raw: unknown): BuchungEvent | null {
   if (herkunftPlatzId == null && zielPlatzId == null) return null;
 
   const menge = typeof o.menge === 'number' ? o.menge : Number(o.menge ?? 0);
+  const tsRaw = toIntOrNull(o.ts);
   return {
     mandant,
     artikelnummer,
@@ -42,7 +43,10 @@ export function parseBuchung(raw: unknown): BuchungEvent | null {
     zielCarrierId: toIntOrNull(o.zielCarrierId),
     typ: toIntOrNull(o.typ),
     benutzer: optStr(o.benutzer) ?? '',
-    ts: Date.now(),
+    herkunftLager: optStr(o.herkunftLager),
+    zielLager: optStr(o.zielLager),
+    quelle: optStr(o.quelle),
+    ts: tsRaw != null && tsRaw > 0 ? tsRaw : Date.now(),
   };
 }
 

@@ -135,6 +135,10 @@ function CellLayer({
         onPointerOut: () => setHoverPlatz(-1),
         onClick: (e: ThreeEvent<MouseEvent>) => {
           e.stopPropagation();
+          setSelection({ ort, platz: null, rack: null });
+        },
+        onDoubleClick: (e: ThreeEvent<MouseEvent>) => {
+          e.stopPropagation();
           const s = segFor(e);
           const p = s && platzById.get(s.platzId);
           if (p) setSelection({ ort, platz: p, rack: placed });
