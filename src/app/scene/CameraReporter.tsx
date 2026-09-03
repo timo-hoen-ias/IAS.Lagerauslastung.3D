@@ -20,7 +20,7 @@ export default function CameraReporter() {
     const next = { x: camera.position.x, y: camera.position.y, z: camera.position.z, yaw: Math.atan2(dir.current.x, dir.current.z) };
     if (camMoved(next, last.current)) {
       last.current = next;
-      updateCam({ x: next.x, z: next.z, yaw: next.yaw });
+      updateCam({ x: next.x, y: next.y, z: next.z, yaw: next.yaw });
     }
   });
   return null;

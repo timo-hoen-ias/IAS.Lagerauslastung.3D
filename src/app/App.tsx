@@ -25,6 +25,8 @@ import { lagerLaden } from './lager';
 import { nextIntervalMs, randomBuchung, SIM_MAX_MS, SIM_MIN_MS } from './sim';
 import type { HeatmapDaten } from './heatmap';
 import HeatmapPanel from './ui/HeatmapPanel';
+import FlirHud from './ui/FlirHud';
+import { useFlirRadio } from './radio';
 
 export type Mode = 'orbit' | 'walk' | 'topdown';
 
@@ -54,6 +56,7 @@ export default function App() {
   const [flir, setFlir] = useState(false);
   const [editorLagerList, setEditorLagerList] = useState<EditorLagerListItem[]>([]);
   const [editorLagerDefs, setEditorLagerDefs] = useState<Map<string, EditorLager>>(new Map());
+  useFlirRadio(flir);
   const visibleEditorLagerIds = useVisibleEditorLagerIds();
   const hiddenLagerkennungen = useHiddenLagerkennungen();
 
@@ -188,6 +191,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!flir) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFlir(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [flir]);
+
+  useEffect(() => {
     if (!edit) return;
     const onKey = (e: KeyboardEvent) => {
       if (!selectedRack) return;
@@ -243,7 +255,7 @@ export default function App() {
           editorOverlays={editorOverlays}
         />
       </Canvas>
-      <HUD
+      {!flir && <HUD
         data={data}
         dbs={dbs}
         db={db}
@@ -273,8 +285,8 @@ export default function App() {
         heatmap={heatmapOpen}
         setHeatmap={setHeatmapOpen}
         onFlirToggle={() => setFlir((f) => !f)}
-      />
-      {heatmapOpen && (
+      />}
+      {!flir && heatmapOpen && (
         <HeatmapPanel
           data={data}
           onBerechnen={loadHeatmap}
@@ -284,9 +296,10 @@ export default function App() {
           range={heatmap ? { from: heatmap.from, to: heatmap.to } : null}
         />
       )}
-      <Minimap racks={racks} visible={mode === 'walk'} />
-      {mode === 'walk' && <Crosshair />}
-      <Inspector data={data} editorLagerList={editorLagerList} />
+      {!flir && <Minimap racks={racks} visible={mode === 'walk'} />}
+      {!flir && mode === 'walk' && <Crosshair />}
+      {flir && <FlirHud onExit={() => setFlir(false)} />}
+      {!flir && <Inspector data={data} editorLagerList={editorLagerList} />}
     </div>
   );
 }

@@ -135,9 +135,9 @@ export function usePlayer(): PlayerState {
 
 // ---- Kamera (für Koordinaten-Readout) --------------------------------------
 
-export type CamState = { x: number; z: number; yaw: number };
+export type CamState = { x: number; y: number; z: number; yaw: number };
 
-let camSnapshot: CamState = { x: 0, z: 0, yaw: 0 };
+let camSnapshot: CamState = { x: 0, y: 0, z: 0, yaw: 0 };
 const camListeners = new Set<() => void>();
 
 export function updateCam(state: CamState): void {

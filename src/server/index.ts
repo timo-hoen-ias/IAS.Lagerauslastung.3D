@@ -123,6 +123,7 @@ async function handleAnzeige(req: Request, url: URL): Promise<Response> {
 
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 3001),
+  hostname: '0.0.0.0',
   async fetch(req, srv) {
     const url = new URL(req.url);
     if (req.method === 'GET' && url.pathname === '/api/buchung/ws') {
@@ -209,4 +210,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`[server] lager-api auf http://localhost:${server.port}`);
+console.log(`[server] lager-api auf http://0.0.0.0:${server.port}`);

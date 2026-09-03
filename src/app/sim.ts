@@ -1,8 +1,8 @@
 import type { BuchungEvent, LagerDaten } from '../shared/types';
 
 /** Zufällige Pause zwischen zwei simulierten Buchungen (Debug-Modus). */
-export const SIM_MIN_MS = 3_000;
-export const SIM_MAX_MS = 5_000;
+export const SIM_MIN_MS = 300;
+export const SIM_MAX_MS = 500;
 
 /** Zeitfenster der simulierten Zeitpunkte: jetzt ± 60 Minuten. */
 export const SIM_TS_SPREAD_MS = 60 * 60 * 1000;
